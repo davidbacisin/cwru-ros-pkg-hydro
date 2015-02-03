@@ -171,7 +171,7 @@ void lidarNearestCallback(const std_msgs::Float32& ld_rcvd){
 
 // receive the infor e-stop status
 // copy the relevant values to global variables, for use by "main"
-void eStopStatueCallback(const std_msgs::Bool& ess_rcvd){
+void eStopStatusCallback(const std_msgs::Bool& ess_rcvd){
     //here's a trick to compute the delta-time between successive callbacks:
     dt_callback_ = (ros::Time::now() - t_last_callback_).toSec();
     t_last_callback_ = ros::Time::now(); // let's remember the current time, and use it next iteration
@@ -182,7 +182,7 @@ void eStopStatueCallback(const std_msgs::Bool& ess_rcvd){
     }
     
     // check for data on topic ""lidar_alarm"" 
-    ROS_INFO("received estop status value is: %f", ess_rcvd.data);
+    ROS_INFO("received estop status value is: %i", ess_rcvd.data);
     // post the received data in a global var for access by main prog
     estop_status.data = ess_rcvd.data;
 }
@@ -198,7 +198,7 @@ int main(int argc, char **argv) {
     ros::Subscriber sub_halt = nh.subscribe("/robot0/cmd_vel", 1, haltCallback);
     ros::Subscriber sub_lidar_alarm = nh.subscribe("lidar_alarm", 1, lidarAlarmCallback);
     ros::Subscriber sub_lidar_nearest = nh.subscribe("lidar_dist", 1, lidarNearestCallback);
-    ros::Subscriber sub_estop_status = nh.subscribe("estop_status", 1, eStopStatueCallback);
+    ros::Subscriber sub_estop_status = nh.subscribe("estop_status", 1, eStopStatusCallback);
 
     ros::Rate rtimer(1 / DT); // frequency corresponding to chosen sample period DT; the main loop will run this fast
 
@@ -303,7 +303,7 @@ int main(int argc, char **argv) {
 
         cmd_vel.linear.x = new_cmd_vel;
         cmd_vel.angular.z = new_cmd_omega; // spin command; always zero, in this example
-        if (dist_to_go <= 0.0 || lidar_nearest.data = true || estop_status.data = true) { //if any of these conditions is true, the robot should stop
+        if (dist_to_go <= 0.0 || lidar_nearest.data == true || estop_status.data == true) { //if any of these conditions is true, the robot should stop
             cmd_vel.linear.x = 0.0;  //command vel=0
         }
         vel_cmd_publisher.publish(cmd_vel); // publish the command to jinx/cmd_vel
