@@ -28,7 +28,7 @@ twist_cmd.angular.z = 0.0;
 while(ros::ok()) // do work here in infinite loop (desired for this example), but terminate if detect ROS has faulted
 {
 
-  cmd_publisher.publish(twist_cmd); // publish the value--of type Float64-- to the topic "topic1"
+  cmd_publisher.publish(twist_cmd); // publish the value--of type Float64-- to the topic "/robot0/cmd_vel"
   sleep_timer.sleep();
 
 }

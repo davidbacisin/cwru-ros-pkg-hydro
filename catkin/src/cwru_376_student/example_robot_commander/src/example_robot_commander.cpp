@@ -37,7 +37,7 @@ for (int j=3;j>0;j--) {
         sleep_timer.sleep();
 }
 
-int niters = 1200; //1000 iters at 100Hz is 10 seconds;
+int niters = 1200; //1200 iters at 100Hz is 10 seconds;
 //iteration counter; at 10ms/iteration, and 0.2m/sec, expect 2mm/iter
 // should move by 2m over 10 sec
 for (int i=0;i<niters;i++) {
