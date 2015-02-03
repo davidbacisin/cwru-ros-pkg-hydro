@@ -63,6 +63,7 @@ void LidarInterpreter::laserCallback(const sensor_msgs::LaserScan& laser_scan) {
 		current_ping = 0.0;
 	sensor_msgs::LaserScan laser_scan_cp = laser_scan;
 	// start with ping 2 and end with the third-to-last ping so that we don't cause a segmentation fault in smoothPing()
+	int range_size = (int) ((fabs(instance->angle_min) + fabs(instance->angle_max))/instance->angle_increment);
 	for (int i=2; i+2 < sizeof(laser_scan.ranges); i++){
 		// clamp the ping
 		current_ping = clampPing(i, laser_scan_cp, ping_clamped);
