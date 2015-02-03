@@ -23,7 +23,7 @@ private:
 	static float smoothPing(int index, const sensor_msgs::LaserScan& laser_scan);
 	
 public:
-	LidarInterpreter(ros::NodeHandle& nh);
+    LidarInterpreter(ros::NodeHandle& nh, char *lidar_topic);
 	// callback for when the LIDAR has data
 	static void laserCallback(const sensor_msgs::LaserScan& laser_scan);
 };
