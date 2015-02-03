@@ -65,6 +65,15 @@ double odom_phi_ = 0.0;
 double dt_odom_ = 0.0;
 ros::Time t_last_callback_;
 double dt_callback_=0.0;
+double halt_vel_l_x_ = 0;
+double halt_vel_l_y_ = 0;
+double halt_vel_l_z_ = 0;
+double halt_vel_a_x_ = 0;
+double halt_vel_a_y_ = 0;
+double halt_vel_a_z_ = 0;
+std_msgs::Boolean lidar_alarm_msg;
+std_msgs::Float32 lidar_nearest;
+std_msgs::Boolean estop_status
 
 // receive odom messages and strip off the components we want to use
 // tested this OK w/ stdr
@@ -98,7 +107,7 @@ void odomCallback(const nav_msgs::Odometry& odom_rcvd) {
     ROS_INFO("odom CB: x = %f, y= %f, phi = %f, v = %f, omega = %f", odom_x_, odom_y_, odom_phi_, odom_vel_, odom_omega_);
 }
 
-// receive the linear and angluar and velocity estimates from the simulator (or the physical robot)
+// receive the linear and angular and velocity estimates from the simulator (or the physical robot)
 // copy the relevant values to global variables, for use by "main"
 void haltCallback(const geometry_msgs::Twist& h_rcvd){
     //here's a trick to compute the delta-time between successive callbacks:
@@ -111,12 +120,12 @@ void haltCallback(const geometry_msgs::Twist& h_rcvd){
     }
     // copy some of the components of the received message from haltCallback into global vars, for use by "main()"
     // we care about speed and spin
-    double halt_vel_l_x_ = h_rcvd.linear.x;      
-    double halt_vel_l_y_ = h_rcvd.linear.y;
-    double halt_vel_l_z_ = h_rcvd.linear.z;
-    double halt_vel_a_x_ = h_rcvd.angluar.x;
-    double halt_vel_a_y_ = h_rcvd.angluar.y;
-    double halt_vel_a_z_ = h_rcvd.angluar.z;
+    halt_vel_l_x_ = h_rcvd.linear.x;      
+    halt_vel_l_y_ = h_rcvd.linear.y;
+    halt_vel_l_z_ = h_rcvd.linear.z;
+    halt_vel_a_x_ = h_rcvd.angular.x;
+    halt_vel_a_y_ = h_rcvd.angular.y;
+    halt_vel_a_z_ = h_rcvd.angular.z;
     // the output below could get annoying; may comment this out, but useful initially for debugging
     ROS_INFO("halt CB: l_x = %f, l_y = %f, l_z = %f, a_x = %f, a_y = %f, a_z = %f", halt_vel_l_x_, halt_vel_l_y_, halt_vel_l_z_, halt_vel_a_x_, halt_vel_a_y_, halt_vel_a_z_);
     
@@ -137,14 +146,14 @@ void lidarAlarmCallback(const std_msgs::Bool& la_rcvd){
     // check for data on topic ""lidar_alarm"" 
     ROS_INFO("received lidar alarm value is: %f", la_rcvd.data);
     // post the received data in a global var for access by main prog
-    lidar_alarm_msg.data = la_rcvd.data
+    lidar_alarm_msg.data = la_rcvd.data;
     
 }
 
 
 // receive the infor from lidar dist
 // copy the relevant values to global variables, for use by "main"
-void lidarDistCallback(const std_msgs::Float32& ld_rcvd){
+void lidarNearestCallback(const std_msgs::Float32& ld_rcvd){
     //here's a trick to compute the delta-time between successive callbacks:
     dt_callback_ = (ros::Time::now() - t_last_callback_).toSec();
     t_last_callback_ = ros::Time::now(); // let's remember the current time, and use it next iteration
@@ -157,7 +166,7 @@ void lidarDistCallback(const std_msgs::Float32& ld_rcvd){
     // check for data on topic "lidar_dist" 
     ROS_INFO("received lidar dist value is: %f", ld_rcvd.data);
     // post the received data in a global var for access by main prog
-    lidar_dist_msg.data = ld_rcvd.data
+    lidar_nearest.data = ld_rcvd.data;
 }
 
 // receive the infor e-stop status
@@ -175,7 +184,7 @@ void eStopStatueCallback(const std_msgs::Bool& ess_rcvd){
     // check for data on topic ""lidar_alarm"" 
     ROS_INFO("received estop status value is: %f", ess_rcvd.data);
     // post the received data in a global var for access by main prog
-    estop_status.data = ess_rcvd.data
+    estop_status.data = ess_rcvd.data;
 }
 
 
@@ -188,7 +197,7 @@ int main(int argc, char **argv) {
     ros::Subscriber sub_odom = nh.subscribe("/jinx/odom", 1, odomCallback);
     ros::Subscriber sub_halt = nh.subscribe("/robot0/cmd_vel", 1, haltCallback);
     ros::Subscriber sub_lidar_alarm = nh.subscribe("lidar_alarm", 1, lidarAlarmCallback);
-    ros::Subscriber sub_lidar_dist = nh.subscribe("lidar_dist", 1, lidarDistCallback);
+    ros::Subscriber sub_lidar_nearest = nh.subscribe("lidar_dist", 1, lidarNearestCallback);
     ros::Subscriber sub_estop_status = nh.subscribe("estop_status", 1, eStopStatueCallback);
 
     ros::Rate rtimer(1 / DT); // frequency corresponding to chosen sample period DT; the main loop will run this fast
@@ -294,7 +303,7 @@ int main(int argc, char **argv) {
 
         cmd_vel.linear.x = new_cmd_vel;
         cmd_vel.angular.z = new_cmd_omega; // spin command; always zero, in this example
-        if (dist_to_go <= 0.0 || lidar_dist_msg.data = true || estop_status.data = true) { //if any of these conditions is true, the robot should stop
+        if (dist_to_go <= 0.0 || lidar_nearest.data = true || estop_status.data = true) { //if any of these conditions is true, the robot should stop
             cmd_vel.linear.x = 0.0;  //command vel=0
         }
         vel_cmd_publisher.publish(cmd_vel); // publish the command to jinx/cmd_vel
