@@ -193,8 +193,12 @@ int main(int argc, char **argv) {
     ros::NodeHandle nh; // get a ros nodehandle; standard yadda-yadda
     //create a publisher object that can talk to ROS and issue twist messages on named topic;
     // note: this is customized for stdr robot; would need to change the topic to talk to jinx, etc.
-    ros::Publisher vel_cmd_publisher = nh.advertise<geometry_msgs::Twist>("jinx/cmd_vel", 1);
-    ros::Subscriber sub_odom = nh.subscribe("/jinx/odom", 1, odomCallback);
+    
+    if (argc < 3) {
+        ROS_INFO("Velocity scheduler needs a topic name to published");
+    }
+    ros::Publisher vel_cmd_publisher = nh.advertise<geometry_msgs::Twist>(argv[1], 1);
+    ros::Subscriber sub_odom = nh.subscribe(argv[2], 1, odomCallback);
     ros::Subscriber sub_halt = nh.subscribe("/robot0/cmd_vel", 1, haltCallback);
     ros::Subscriber sub_lidar_alarm = nh.subscribe("lidar_alarm", 1, lidarAlarmCallback);
     ros::Subscriber sub_lidar_nearest = nh.subscribe("lidar_dist", 1, lidarNearestCallback);
