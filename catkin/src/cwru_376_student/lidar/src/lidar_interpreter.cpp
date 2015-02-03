@@ -2,17 +2,6 @@
 #include <sensor_msgs/LaserScan.h>
 #include <std_msgs/Float32.h>
 
-const double MIN_SAFE_DISTANCE = 0.5; // set alarm if anything is within 0.5m of the front of robot
-
-// these values to be set within the laser callback
-float ping_dist_in_front_=3.0; // global var to hold length of a SINGLE LIDAR ping--in front
-int ping_index_= -1; // NOT real; callback will have to find this
-double angle_min_=0.0;
-double angle_max_=0.0;
-double angle_increment_=0.0;
-double range_min_ = 0.0;
-double range_max_ = 0.0;
-
 class LidarInterpreter {
 private:
 	static LidarInterpreter *instance;
@@ -41,11 +30,11 @@ public:
 
 LidarInterpreter *LidarInterpreter::instance;
 
-LidarInterpreter::LidarInterpreter(ros::NodeHandle& nh) {
+LidarInterpreter::LidarInterpreter(ros::NodeHandle& nh, char *lidar_topic) {
 	// set the instance variable
 	instance = this;
 	// subscribe to the LIDAR
-	lidar_subscriber = nh.subscribe("robot0/laser_0", 1, laserCallback);
+	lidar_subscriber = nh.subscribe(lidar_topic, 1, laserCallback);
 	// broadcast on the lidar_nearest topic
 	lidar_nearest = nh.advertise<std_msgs::Float32>("lidar_nearest", 1);
 	// initialize the LIDAR range values
@@ -121,14 +110,18 @@ float LidarInterpreter::smoothPing(int index, const sensor_msgs::LaserScan& lase
 	return aggregator / sum_weights;
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char *argv[]) {
     ros::init(argc, argv, "lidar_interpreter"); // name this node
     ros::NodeHandle nh;
-	
-	LidarInterpreter lidar_interpreter(nh);
-	
-	// do nothing; delegate further processing to callbacks
-    ros::spin();
-	
+	// argv[1] should be the name of the topic on which to get the LIDAR data
+	if (argc < 1) {
+		ROS_INFO("LidarInterpreter needs the name of the LIDAR topic as the first argument");
+	}
+	else {
+		LidarInterpreter lidar_interpreter(nh, argv[1]);
+		
+		// do nothing; delegate further processing to callbacks
+		ros::spin();
+	}
     return 0;
 }
