@@ -72,7 +72,7 @@ double dt_callback_=0.0;
 // receive the pose and velocity estimates from the simulator (or the physical robot)
 // copy the relevant values to global variables, for use by "main"
 // Note: stdr updates odom only at 10Hz; Jinx is 50Hz (?)
-void odomCallback(const Jinx::Odometry& odom_rcvd) {
+void odomCallback(const nav_msgs::Odometry& odom_rcvd) {
     //here's a trick to compute the delta-time between successive callbacks:
     dt_callback_ = (ros::Time::now() - t_last_callback_).toSec();
     t_last_callback_ = ros::Time::now(); // let's remember the current time, and use it next iteration
@@ -135,7 +135,7 @@ void lidarAlarmCallback(const std_msgs::Bool& la_rcvd){
     }
     
     // check for data on topic ""lidar_alarm"" 
-    ROS_INFO("received lidar alarm value is: %f, la_rcvd.data);
+    ROS_INFO("received lidar alarm value is: %f", la_rcvd.data);
     // post the received data in a global var for access by main prog
     lidar_alarm_msg.data = la_rcvd.data
     
@@ -155,7 +155,7 @@ void lidarDistCallback(const std_msgs::Float32& ld_rcvd){
     }
     
     // check for data on topic "lidar_dist" 
-    ROS_INFO("received lidar dist value is: %f, ld_rcvd.data);
+    ROS_INFO("received lidar dist value is: %f", ld_rcvd.data);
     // post the received data in a global var for access by main prog
     lidar_dist_msg.data = ld_rcvd.data
 }
@@ -173,7 +173,7 @@ void eStopStatueCallback(const std_msgs::Bool& ess_rcvd){
     }
     
     // check for data on topic ""lidar_alarm"" 
-    ROS_INFO("received estop status value is: %f, ess_rcvd.data);
+    ROS_INFO("received estop status value is: %f", ess_rcvd.data);
     // post the received data in a global var for access by main prog
     estop_status.data = ess_rcvd.data
 }
