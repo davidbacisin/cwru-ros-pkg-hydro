@@ -71,9 +71,9 @@ double halt_vel_l_z_ = 0;
 double halt_vel_a_x_ = 0;
 double halt_vel_a_y_ = 0;
 double halt_vel_a_z_ = 0;
-std_msgs::Boolean lidar_alarm_msg;
+std_msgs::Bool lidar_alarm_msg;
 std_msgs::Float32 lidar_nearest;
-std_msgs::Boolean estop_status
+std_msgs::Bool estop_status;
 
 // receive odom messages and strip off the components we want to use
 // tested this OK w/ stdr
@@ -144,7 +144,7 @@ void lidarAlarmCallback(const std_msgs::Bool& la_rcvd){
     }
     
     // check for data on topic ""lidar_alarm"" 
-    ROS_INFO("received lidar alarm value is: %f", la_rcvd.data);
+    ROS_INFO("received lidar alarm value is: %i", la_rcvd.data);
     // post the received data in a global var for access by main prog
     lidar_alarm_msg.data = la_rcvd.data;
     
