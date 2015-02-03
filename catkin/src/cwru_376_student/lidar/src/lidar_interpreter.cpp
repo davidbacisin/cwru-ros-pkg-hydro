@@ -114,7 +114,7 @@ int main(int argc, char *argv[]) {
     ros::init(argc, argv, "lidar_interpreter"); // name this node
     ros::NodeHandle nh;
 	// argv[1] should be the name of the topic on which to get the LIDAR data
-	if (argc < 1) {
+    if (argc < 2) {
 		ROS_INFO("LidarInterpreter needs the name of the LIDAR topic as the first argument");
 	}
 	else {
