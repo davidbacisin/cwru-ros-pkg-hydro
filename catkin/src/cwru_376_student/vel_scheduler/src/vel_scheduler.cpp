@@ -111,12 +111,12 @@ void haltCallback(const geometry_msgs::Twist& h_rcvd){
     }
     // copy some of the components of the received message from haltCallback into global vars, for use by "main()"
     // we care about speed and spin
-    double halt_vel_l_x_ = h_rcvd.twist.linear.x;      
-    double halt_vel_l_y_ = h_rcvd.twist.linear.y;
-    double halt_vel_l_z_ = h_rcvd.twist.linear.z;
-    double halt_vel_a_x_ = h_rcvd.twist.angluar.x;
-    double halt_vel_a_y_ = h_rcvd.twist.angluar.y;
-    double halt_vel_a_z_ = h_rcvd.twist.angluar.z;
+    double halt_vel_l_x_ = h_rcvd.linear.x;      
+    double halt_vel_l_y_ = h_rcvd.linear.y;
+    double halt_vel_l_z_ = h_rcvd.linear.z;
+    double halt_vel_a_x_ = h_rcvd.angluar.x;
+    double halt_vel_a_y_ = h_rcvd.angluar.y;
+    double halt_vel_a_z_ = h_rcvd.angluar.z;
     // the output below could get annoying; may comment this out, but useful initially for debugging
     ROS_INFO("halt CB: l_x = %f, l_y = %f, l_z = %f, a_x = %f, a_y = %f, a_z = %f", halt_vel_l_x_, halt_vel_l_y_, halt_vel_l_z_, halt_vel_a_x_, halt_vel_a_y_, halt_vel_a_z_);
     
