@@ -16,7 +16,9 @@ private:
 		  range_min,
 		  range_max;
 	// we will calculate the number of pings per scan
-	int ping_count;
+	int ping_count,
+		ping_start_index,
+		ping_end_index;
 		  
 	// utility method for clamping ping data to the measurable ranges.
 	// Returns 0 if no clamping, 1 if clamped on the far end, or -1 if clamped on the near end.
@@ -57,7 +59,9 @@ void LidarInterpreter::laserCallback(const sensor_msgs::LaserScan& laser_scan) {
         instance->angle_increment = laser_scan.angle_increment;
         instance->range_min = laser_scan.range_min;
         instance->range_max = laser_scan.range_max;
-		instance->ping_count = (int) ((fabs(instance->angle_min) + fabs(instance->angle_max))/instance->angle_increment);
+		instance->ping_count = (int) ((fabs(instance->angle_max - instance->angle_min))/instance->angle_increment);
+		instance->ping_start_index = (int) ((fabs(-M_PI/2.0 - instance->angle_min))/instance->angle_increment);
+		instance->ping_end_index = (int) ((fabs(M_PI/2.0 - instance->angle_min))/instance->angle_increment);
 		ROS_INFO("There are %i pings in the laser scan", instance->ping_count);
 	}
 	
@@ -68,8 +72,8 @@ void LidarInterpreter::laserCallback(const sensor_msgs::LaserScan& laser_scan) {
 	float nearest_object = instance->range_max,
 		current_ping = 0.0;
 	sensor_msgs::LaserScan laser_scan_copy = laser_scan;
-	// start with ping 2 and end with the third-to-last ping so that we don't cause a segmentation fault inside smoothPing
-	for (int i=2; i+2 < instance->ping_count; i++){
+	// start with at least ping 2 and end with no further than the third-to-last ping so that we don't cause a segmentation fault inside smoothPing
+	for (int i=instance->ping_start_index; i < instance->ping_end_index; i++){
 		// clamp the ping
 		ping_clamped = clampPing(i, laser_scan_copy);
 		// smooth out noise
