@@ -22,9 +22,9 @@ private:
 		  
 	// utility method for clamping ping data to the measurable ranges.
 	// Returns 0 if no clamping, 1 if clamped on the far end, or -1 if clamped on the near end.
-	static int clampPing(int index, const sensor_msgs::LaserScan& laser_scan);
+    static int clampPing(int index, sensor_msgs::LaserScan& laser_scan);
 	// utility method for reducing noise in the LIDAR range data
-	static void smoothPing(int index, const sensor_msgs::LaserScan& laser_scan);
+    static void smoothPing(int index, sensor_msgs::LaserScan& laser_scan);
 	
 public:
     LidarInterpreter(ros::NodeHandle& nh, char *lidar_topic);
@@ -62,24 +62,30 @@ void LidarInterpreter::laserCallback(const sensor_msgs::LaserScan& laser_scan) {
 		instance->ping_count = (int) ((fabs(instance->angle_max - instance->angle_min))/instance->angle_increment);
 		instance->ping_start_index = (int) ((fabs(-M_PI/2.0 - instance->angle_min))/instance->angle_increment);
 		instance->ping_end_index = (int) ((fabs(M_PI/2.0 - instance->angle_min))/instance->angle_increment);
-		ROS_INFO("There are %i pings in the laser scan", instance->ping_count);
+        ROS_INFO("There are %i pings in the laser scan. We are testing pings %i through %i.",
+                 instance->ping_count,
+                 instance->ping_start_index,
+                 instance->ping_end_index);
 	}
 	
 	// filter the ping data
 	// clamped pings should not be considered for nearest object
 	int ping_clamped = 0;
 	// keep updated with the nearest object
-	float nearest_object = instance->range_max,
-		current_ping = 0.0;
-	sensor_msgs::LaserScan laser_scan_copy = laser_scan;
-	// start with at least ping 2 and end with no further than the third-to-last ping so that we don't cause a segmentation fault inside smoothPing
-	for (int i=instance->ping_start_index; i < instance->ping_end_index; i++){
+    float nearest_object = instance->range_max;
+    sensor_msgs::LaserScan laser_scan_copy = laser_scan;
+    // clamp all the pings before running the smoothing algorithm
+    for (int i=0; i < instance->ping_count; i++){
 		// clamp the ping
 		ping_clamped = clampPing(i, laser_scan_copy);
-		// smooth out noise
-		smoothPing(i, laser_scan_copy);
-		// see if the ping had the shortest distance
-		if (ping_clamped==0 &&
+        // ROS_INFO("Original ping: %f; Adjusted: %f", laser_scan.ranges[i], laser_scan_copy.ranges[i]);
+    }
+    // start with at least ping 2 and end with no further than the third-to-last ping so that we don't cause a segmentation fault inside smoothPing
+    for (int i=instance->ping_start_index; i < instance->ping_end_index; i++){
+        // smooth out noise
+        smoothPing(i, laser_scan_copy);
+        // see if the ping had the shortest distance
+        if (ping_clamped <= 0 &&
 			laser_scan_copy.ranges[i] < nearest_object){
 			nearest_object = laser_scan_copy.ranges[i];
 		}
@@ -91,7 +97,7 @@ void LidarInterpreter::laserCallback(const sensor_msgs::LaserScan& laser_scan) {
 	instance->lidar_nearest.publish(lidar_dist_msg);
 }
 
-float LidarInterpreter::clampPing(int index, const sensor_msgs::LaserScan& laser_scan) {
+int LidarInterpreter::clampPing(int index, sensor_msgs::LaserScan& laser_scan) {
 	if (laser_scan.ranges[index] <= instance->range_min) {
 		laser_scan.ranges[index] = instance->range_min;
 		return -1;
@@ -106,17 +112,17 @@ float LidarInterpreter::clampPing(int index, const sensor_msgs::LaserScan& laser
 	}
 }
 
-float LidarInterpreter::smoothPing(int index, const sensor_msgs::LaserScan& laser_scan) {
+void LidarInterpreter::smoothPing(int index, sensor_msgs::LaserScan& laser_scan) {
 	// Perform a weighted average of the ping values
 	int weights[] = { 1, 4, 6, 4, 1 },
 		sum_weights = 16;
 	// accumulate the weighted sum
-	float aggregator = 0.0;
+    float aggregator = 0.0;
 	for (int i=0; i < 5; i++){
 		aggregator += weights[i] * laser_scan.ranges[index + i - 2];
 	}
 	// divide by the sum of the weights to determine the smoothed value
-	return aggregator / sum_weights;
+    laser_scan.ranges[index] = aggregator / sum_weights;
 }
 
 int main(int argc, char *argv[]) {
