@@ -64,7 +64,7 @@ double odom_y_ = 0.0;
 double odom_phi_ = 0.0;
 double dt_odom_ = 0.0;
 ros::Time t_last_callback_;
-double dt_callback_=0.0;
+double dt_callback_= 0.0;
 double halt_vel_l_x_ = 0;
 double halt_vel_l_y_ = 0;
 double halt_vel_l_z_ = 0;
@@ -294,12 +294,12 @@ int main(int argc, char **argv) {
             double v_test = odom_vel_ - 1.2 * a_max*dt_callback_; //moving too fast--try decelerating faster than nominal a_max
 
             new_cmd_vel = (v_test > scheduled_vel) ? v_test : scheduled_vel; // choose larger of two options...don't overshoot scheduled_vel
-        } else if (halt_vel_l_x_ = 0) { // maybe stop when we send this halt commander
+        } else if (halt_vel_l_x_ == 0) { // maybe stop when we send this halt commander
             new_cmd_vel = halt_vel_l_x_;
             ROS_INFO("halt x linear velocity: %f", halt_vel_l_x_); // debug output
-        } else if (lidar_alarm_msg.data = true) { // should stop when the robot receive true value of lidar alarm    
+        } else if (lidar_alarm_msg.data == true) { // should stop when the robot receive true value of lidar alarm    
             new_cmd_vel = 0;
-            ROS_INFO("lidar alarm: %f", halt_vel_l_x_); // debug output
+            ROS_INFO("lidar alarm: %i", lidar_alarm_msg.data); // debug output
         } else {
             new_cmd_vel = scheduled_vel; //silly third case: this is already true, if here.  Issue the scheduled velocity
         }
