@@ -16,14 +16,14 @@ private:
 public:
 	LidarAlarm(ros::NodeHandle& nh);
 	// callback for when the lidar_nearest has data
-	static void liderNearestCallback(const std_msgs::Float32& nearest);
+	static void lidarNearestCallback(const std_msgs::Float32& nearest);
 };
 
 LidarAlarm::LidarAlarm(ros::NodeHandle& nh) {
 	// set the singleton instance variable
 	instance = this;
 	// subscribe to lidar_nearest
-	lidar_nearest_subscriber = nh.subscribe("lidar_nearest", 1, liderNearestCallback);
+	lidar_nearest_subscriber = nh.subscribe("lidar_nearest", 1, lidarNearestCallback);
 	// broadcast on the lidar_alarm topic
 	lidar_alarm = nh.advertise<std_msgs::Bool>("lidar_alarm", 1);
 	// by default, alarm is off
@@ -34,12 +34,12 @@ LidarAlarm::LidarAlarm(ros::NodeHandle& nh) {
 
 LidarAlarm *LidarAlarm::instance;
 
-void LidarAlarm::liderNearestCallback(const std_msgs::Float32& nearest) {
+void LidarAlarm::lidarNearestCallback(const std_msgs::Float32& nearest) {
 	instance->isAlarmed = (nearest.data < instance->minimum_safe_distance);
 	// publish the alarm
-	std_msgs::Bool lidar_alarmed_msg;
-	lidar_alarmed_msg.data = instance->isAlarmed;
-	instance->lidar_alarm.publish(lidar_alarmed_msg);
+	std_msgs::Bool lidar_alarm_msg;
+	lidar_alarm_msg.data = instance->isAlarmed;
+	instance->lidar_alarm.publish(lidar_alarm_msg);
 }
 
 int main(int argc, char **argv) {
