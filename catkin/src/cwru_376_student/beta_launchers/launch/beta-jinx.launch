@@ -1,7 +1,7 @@
 <launch>
 	
 	<!-- Launch Lidar nodes -->
-	<node name="lidar_interpreter" pkg="lidar" type="lidar_interpreter" args="/laser_0" respawn="true"></node>	
+	<node name="lidar_interpreter" pkg="lidar" type="lidar_interpreter" args="/base_laser1_scan" respawn="true"></node>	
 	<node name="lidar_alarm" pkg="lidar" type="lidar_alarm" respawn="true"></node>
 
 	<!-- Launch Velocity Scheduler -->
