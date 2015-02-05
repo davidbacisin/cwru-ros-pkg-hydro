@@ -60,8 +60,8 @@ void LidarInterpreter::laserCallback(const sensor_msgs::LaserScan& laser_scan) {
         instance->range_min = laser_scan.range_min;
         instance->range_max = laser_scan.range_max;
 		instance->ping_count = (int) ((fabs(instance->angle_max - instance->angle_min))/instance->angle_increment);
-		instance->ping_start_index = (int) ((fabs(-M_PI/2.0 - instance->angle_min))/instance->angle_increment);
-		instance->ping_end_index = (int) ((fabs(M_PI/2.0 - instance->angle_min))/instance->angle_increment);
+		instance->ping_start_index = (int) ((fabs(-M_PI/4.0 - instance->angle_min))/instance->angle_increment);
+		instance->ping_end_index = (int) ((fabs(M_PI/4.0 - instance->angle_min))/instance->angle_increment);
         ROS_INFO("There are %i pings in the laser scan. We are testing pings %i through %i.",
                  instance->ping_count,
                  instance->ping_start_index,

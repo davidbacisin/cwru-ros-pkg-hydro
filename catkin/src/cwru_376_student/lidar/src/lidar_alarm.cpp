@@ -29,7 +29,7 @@ LidarAlarm::LidarAlarm(ros::NodeHandle& nh) {
 	// by default, alarm is off
 	isAlarmed = false;
 	// set minimum_safe_distance
-	minimum_safe_distance = 0.5; // meters
+	minimum_safe_distance = 1.0; // meters
 };
 
 LidarAlarm *LidarAlarm::instance;

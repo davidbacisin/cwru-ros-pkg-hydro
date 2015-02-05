@@ -17,6 +17,6 @@
 	<node name="lidar_alarm" pkg="lidar" type="lidar_alarm" respawn="true"></node>
 
 	<!-- Launch Velocity Scheduler -->
-	<node name="vel_scheduler" pkg="vel_scheduler" type="vel_scheduler" args="/robot0/cmd_vel /robot0/odom" respawn="true"></node>
+	<node name="vel_scheduler" pkg="vel_scheduler" type="vel_scheduler" args="/robot0/cmd_vel /robot0/odom" respawn="false"></node>
 
 </launch>
