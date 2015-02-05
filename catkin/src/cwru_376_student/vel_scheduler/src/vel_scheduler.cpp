@@ -48,9 +48,9 @@ therefore, theta = 2*atan2(qz,qw)
 
 
 // set some dynamic limits...
-const double v_max = 1.0; //1m/sec is a slow walk
+const double v_max = 0.8; //1m/sec is a slow walk
 const double v_min = 0.1; // if command velocity too low, robot won't move
-const double a_max = 1.0; //1m/sec^2 is 0.1 g's
+const double a_max = 0.8; //1m/sec^2 is 0.1 g's
 //const double a_max_decel = 0.1; // TEST
 const double omega_max = 1.0; //1 rad/sec-> about 6 seconds to rotate 1 full rev
 const double alpha_max = 0.5; //0.5 rad/sec^2-> takes 2 sec to get from rest to full omega
@@ -73,6 +73,7 @@ double halt_vel_a_y_ = 0.0;
 double halt_vel_a_z_ = 0.0;
 std_msgs::Bool lidar_alarm_msg;
 std_msgs::Float32 lidar_nearest;
+bool lidar_initialized = false;
 std_msgs::Bool estop_on;
 std_msgs::Bool halt_status;
 
@@ -110,16 +111,7 @@ void odomCallback(const nav_msgs::Odometry& odom_rcvd) {
 
 // receive the linear and angular and velocity estimates from the simulator (or the physical robot)
 // copy the relevant values to global variables, for use by "main"
-void haltCallback(const std_msgs::Bool& h_rcvd){
-    //here's a trick to compute the delta-time between successive callbacks:
-    dt_callback_ = (ros::Time::now() - t_last_callback_).toSec();
-    t_last_callback_ = ros::Time::now(); // let's remember the current time, and use it next iteration
-
-    if (dt_callback_ > 0.15) { // on start-up, and with occasional hiccups, this delta-time can be unexpectedly large
-        dt_callback_ = 0.1; // can choose to clamp a max value on this, if dt_callback is used for computations elsewhere
-        ROS_WARN("large dt; dt = %lf", dt_callback_); // let's complain whenever this happens
-    }
-    
+void haltCallback(const std_msgs::Bool& h_rcvd){    
     // the output below could get annoying; may comment this out, but useful initially for debugging
     ROS_INFO("halt status: %i", h_rcvd.data);
     // Update the global variable with the halt status
@@ -128,16 +120,7 @@ void haltCallback(const std_msgs::Bool& h_rcvd){
 
 // receive the infor from lidar alarm
 // copy the relevant values to global variables, for use by "main"
-void lidarAlarmCallback(const std_msgs::Bool& la_rcvd){
-    //here's a trick to compute the delta-time between successive callbacks:
-    dt_callback_ = (ros::Time::now() - t_last_callback_).toSec();
-    t_last_callback_ = ros::Time::now(); // let's remember the current time, and use it next iteration
-
-    if (dt_callback_ > 0.15) { // on start-up, and with occasional hiccups, this delta-time can be unexpectedly large
-        dt_callback_ = 0.1; // can choose to clamp a max value on this, if dt_callback is used for computations elsewhere
-        ROS_WARN("large dt; dt = %lf", dt_callback_); // let's complain whenever this happens
-    }
-    
+void lidarAlarmCallback(const std_msgs::Bool& la_rcvd){    
     // check for data on topic ""lidar_alarm"" 
     ROS_INFO("received lidar alarm value is: %i", la_rcvd.data);
     // post the received data in a global var for access by main prog
@@ -148,34 +131,17 @@ void lidarAlarmCallback(const std_msgs::Bool& la_rcvd){
 
 // receive the infor from lidar dist
 // copy the relevant values to global variables, for use by "main"
-void lidarNearestCallback(const std_msgs::Float32& ld_rcvd){
-    //here's a trick to compute the delta-time between successive callbacks:
-    dt_callback_ = (ros::Time::now() - t_last_callback_).toSec();
-    t_last_callback_ = ros::Time::now(); // let's remember the current time, and use it next iteration
-
-    if (dt_callback_ > 0.15) { // on start-up, and with occasional hiccups, this delta-time can be unexpectedly large
-        dt_callback_ = 0.1; // can choose to clamp a max value on this, if dt_callback is used for computations elsewhere
-        ROS_WARN("large dt; dt = %lf", dt_callback_); // let's complain whenever this happens
-    }
-    
+void lidarNearestCallback(const std_msgs::Float32& ld_rcvd){    
     // check for data on topic "lidar_dist" 
     ROS_INFO("received lidar dist value is: %f", ld_rcvd.data);
     // post the received data in a global var for access by main prog
+    lidar_initialized = true;
     lidar_nearest.data = ld_rcvd.data;
 }
 
 // receive the infor e-stop status
 // copy the relevant values to global variables, for use by "main"
-void eStopStatusCallback(const std_msgs::Bool& ess_rcvd){
-    //here's a trick to compute the delta-time between successive callbacks:
-    dt_callback_ = (ros::Time::now() - t_last_callback_).toSec();
-    t_last_callback_ = ros::Time::now(); // let's remember the current time, and use it next iteration
-
-    if (dt_callback_ > 0.15) { // on start-up, and with occasional hiccups, this delta-time can be unexpectedly large
-        dt_callback_ = 0.1; // can choose to clamp a max value on this, if dt_callback is used for computations elsewhere
-        ROS_WARN("large dt; dt = %lf", dt_callback_); // let's complain whenever this happens
-    }
-    
+void eStopStatusCallback(const std_msgs::Bool& ess_rcvd){  
     // check for data on topic ""lidar_alarm"" 
     ROS_INFO("received estop status value is: %i", ess_rcvd.data);
     // post the received data in a global var for access by main prog
@@ -196,7 +162,7 @@ int main(int argc, char **argv) {
     ros::Subscriber sub_odom = nh.subscribe(argv[2], 1, odomCallback);
     ros::Subscriber sub_halt = nh.subscribe("user_brake", 1, haltCallback);
     ros::Subscriber sub_lidar_alarm = nh.subscribe("lidar_alarm", 1, lidarAlarmCallback);
-    ros::Subscriber sub_lidar_nearest = nh.subscribe("lidar_dist", 1, lidarNearestCallback);
+    ros::Subscriber sub_lidar_nearest = nh.subscribe("lidar_nearest", 1, lidarNearestCallback);
     ros::Subscriber sub_estop_status = nh.subscribe("estop_status", 1, eStopStatusCallback);
 
     ros::Rate rtimer(1 / DT); // frequency corresponding to chosen sample period DT; the main loop will run this fast
@@ -260,10 +226,7 @@ int main(int argc, char **argv) {
         ROS_INFO("dist travelled: %f", segment_length_done);
         double dist_to_go = segment_length - segment_length_done;
 
-	if (lidar_nearest.data <= dist_decel) {
-	    dist_to_go = lidar_nearest.data * 0.9; // stop sooner
-	}
-	ROS_INFO("Lidar Nearest: %f, Dist Decel: %f, Dist to go: %f", lidar_nearest.data, dist_decel, dist_to_go);
+	ROS_INFO("Lidar nearest: %f", lidar_nearest.data);
 
         //use segment_length_done to decide what vel should be, as per plan
         if (dist_to_go <= 0.0) { // at goal, or overshot; stop!
@@ -276,7 +239,14 @@ int main(int argc, char **argv) {
             // dist = 0.5*a*t_halt^2; so t_halt = sqrt(2*dist/a);   v = a*t_halt
             // so v = a*sqrt(2*dist/a) = sqrt(2*dist*a)
             scheduled_vel = sqrt(2 * dist_to_go * a_max);
-            ROS_INFO("braking zone: v_sched = %f",scheduled_vel);
+            ROS_INFO("braking zone: scheduled_vel = %f",scheduled_vel);
+        }
+	else if (lidar_initialized && lidar_nearest.data <= 1.5) { // we might get the lidar alarm soon, so start slowing
+            //scheduled_vel = (lidar_nearest.data >= 1.0)? sqrt(2 * (lidar_nearest.data-1.0) * a_max): 0.0;
+	    scheduled_vel = 0.0;
+	    // if (scheduled_vel > v_max)
+	    // scheduled_vel = v_max;
+            ROS_INFO("lidar caution zone: scheduled_vel = %f",scheduled_vel);
         }
         else { // not ready to decel, so target vel is v_max, either accel to it or hold it
             scheduled_vel = v_max;
@@ -285,7 +255,7 @@ int main(int argc, char **argv) {
         //how does the current velocity compare to the scheduled vel?
         if (odom_vel_ < scheduled_vel) {  // maybe we halted, e.g. due to estop or obstacle;
             // may need to ramp up to v_max; do so within accel limits
-            double v_test = odom_vel_ + a_max*DT; // if callbacks are slow, this could be abrupt
+            double v_test = odom_vel_ + a_max*dt_callback_; // if callbacks are slow, this could be abrupt
             // operator:  c = (a>b) ? a : b;
             new_cmd_vel = (v_test < scheduled_vel) ? v_test : scheduled_vel; //choose lesser of two options
             // this prevents overshooting scheduled_vel
@@ -294,7 +264,7 @@ int main(int argc, char **argv) {
             // need to catch up, so ramp down even faster than a_max.  Try 1.2*a_max.
             ROS_INFO("odom vel: %f; sched vel: %f", odom_vel_, scheduled_vel); //debug/analysis output; can comment this out
             
-            double v_test = odom_vel_ - 1.2 * a_max*DT; //moving too fast--try decelerating faster than nominal a_max
+            double v_test = odom_vel_ - 1.2 * a_max*dt_callback_; //moving too fast--try decelerating faster than nominal a_max
 
             new_cmd_vel = (v_test > scheduled_vel) ? v_test : scheduled_vel; // choose larger of two options...don't overshoot scheduled_vel
 	} else {
