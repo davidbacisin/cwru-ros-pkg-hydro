@@ -1,10 +1,10 @@
 <launch>
 	
 	<!-- Launch Lidar nodes -->
-	<node name="lidar_interpreter" pkg="lidar" type="lidar_interpreter" args="/jinx/laser_0" respawn="true"></node>	
+	<node name="lidar_interpreter" pkg="lidar" type="lidar_interpreter" args="/laser_0" respawn="true"></node>	
 	<node name="lidar_alarm" pkg="lidar" type="lidar_alarm" respawn="true"></node>
 
 	<!-- Launch Velocity Scheduler -->
-	<node name="vel_scheduler" pkg="vel_scheduler" type="vel_scheduler" args="/jinx/cmd_vel /jinx/odom" respawn="false"></node>
+	<node name="vel_scheduler" pkg="vel_scheduler" type="vel_scheduler" args="/cmd_vel /odom" respawn="false"></node>
 
 </launch>
