@@ -263,7 +263,7 @@ int main(int argc, char **argv) {
         }
         ROS_INFO("cmd vel: %f",new_cmd_vel); // debug output
 	
-	if (lidar_alarm_msg.data == true || estop_on.data == true) { // maybe stop when we send this halt commander
+	if (lidar_alarm_msg.data == true || estop_on.data == true) { // The robot should stop when either condition is true
             new_cmd_vel = 0.0;
 	    ROS_INFO("Halted the robot. Halt status = %i; Lidar alarm = %i; Estop = %i", halt_status.data, lidar_alarm_msg.data, estop_on.data);
         }
