@@ -8,7 +8,7 @@ public:
 	
 	PathSegment(float h, float d):
 		heading(h),
-		distance(d) { };
+		distance(d) { }
 };
 
 class PathPlanner {
@@ -16,6 +16,8 @@ private:
 	static PathPlanner *instance;
     static PathSegment[] segments;
 	static int segment_count;
+	
+	ros::ServiceServer service;
 public:
 	PathPlanner(ros::NodeHandle& nh);
 	// callback for when a node wants a path segment
@@ -36,6 +38,9 @@ PathPlanner::PathPlanner(ros::NodeHandle& nh) {
 	};
 	// the number of segments
 	segment_count = 5;
+	// create and broadcast the service
+	service = nh.advertiseService("path_planner_service", serviceCallback);
+	ROS_INFO("Ready to fulfill path segment requests");
 };
 
 PathPlanner *PathPlanner::instance;
