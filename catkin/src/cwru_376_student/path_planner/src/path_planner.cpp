@@ -1,16 +1,21 @@
 #include <ros/ros.h>
-#include <path_planner/path_segment.h>
+#include <path_planner/path_segment.h> // the service message class
 #include <math.h>
 
+// PathSegment stores a linear segment of the path
 class PathSegment {
 public:
+	// heading in radians, distance in meters
 	const float heading, distance;
 	
+	// simple constructor, just assign the values
 	PathSegment(float h, float d):
 		heading(h),
 		distance(d) { }
 };
 
+// Define the list of path segments, in order.
+// The array index becomes the ID of the segment.
 PathSegment path_segments_[] = {
 	PathSegment(0.0, 4.8),
 	PathSegment(-M_PI/2.0, 0.0),
@@ -19,13 +24,14 @@ PathSegment path_segments_[] = {
 	PathSegment(0.0, 5.0)
 };
 
+// PathPlanner singleton 
 class PathPlanner {
 private:
-	static PathPlanner *instance;
-	static PathSegment *segments;
-	static int segment_count;
+	static PathPlanner *instance; // singleton instance variable
+	static PathSegment *segments; // the segments associated with this path
+	static int segment_count; // the number of segments (should be the length of the array)
 	
-	ros::ServiceServer service;
+	ros::ServiceServer service; // the ROS service server object for listening/sending
 public:
 	PathPlanner(ros::NodeHandle& nh);
 	// callback for when a node wants a path segment
@@ -35,7 +41,8 @@ public:
 
 PathPlanner::PathPlanner(ros::NodeHandle& nh) {
 	// set the singleton instance variable
-	instance = this;
+	if (!instance)
+		instance = this;
 	// specify the path segments
 	segments = path_segments_;
 	// the number of segments
@@ -45,7 +52,8 @@ PathPlanner::PathPlanner(ros::NodeHandle& nh) {
 	ROS_INFO("Ready to fulfill path segment requests");
 };
 
-PathPlanner *PathPlanner::instance;
+// initialize the static fields
+PathPlanner *PathPlanner::instance = NULL;
 PathSegment *PathPlanner::segments;
 int PathPlanner::segment_count;
 
@@ -68,6 +76,7 @@ int main(int argc, char **argv) {
     ros::init(argc, argv, "path_planner"); // name this node
     ros::NodeHandle nh;
 	
+	// create a path planner, which will do all of the work from here on
 	PathPlanner path_planner(nh);
 	
 	// do nothing; delegate further processing to callbacks
