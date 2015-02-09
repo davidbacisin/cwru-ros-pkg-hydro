@@ -11,10 +11,18 @@ public:
 		distance(d) { }
 };
 
+PathSegment path_segments_[] = {
+	PathSegment(0.0, 4.8),
+	PathSegment(-M_PI/2.0, 0.0),
+	PathSegment(0.0, 12.2),
+	PathSegment(-M_PI/2.0, 0.0),
+	PathSegment(0.0, 5.0)
+};
+
 class PathPlanner {
 private:
 	static PathPlanner *instance;
-    static PathSegment[] segments;
+	static PathSegment *segments;
 	static int segment_count;
 	
 	ros::ServiceServer service;
@@ -29,13 +37,7 @@ PathPlanner::PathPlanner(ros::NodeHandle& nh) {
 	// set the singleton instance variable
 	instance = this;
 	// specify the path segments
-	segments = {
-		PathSegment(0.0, 4.8),
-		PathSegment(-M_PI/2.0, 0.0),
-		PathSegment(0.0, 12.2),
-		PathSegment(-M_PI/2.0, 0.0),
-		PathSegment(0.0, 5.0)
-	};
+	segments = path_segments_;
 	// the number of segments
 	segment_count = 5;
 	// create and broadcast the service
@@ -44,6 +46,8 @@ PathPlanner::PathPlanner(ros::NodeHandle& nh) {
 };
 
 PathPlanner *PathPlanner::instance;
+PathSegment *PathPlanner::segments;
+int PathPlanner::segment_count;
 
 bool PathPlanner::serviceCallback(path_planner::path_segmentRequest& request,
 								  path_planner::path_segmentResponse& response) {
@@ -54,7 +58,7 @@ bool PathPlanner::serviceCallback(path_planner::path_segmentRequest& request,
 		return false;
 	}
 	// populate the response object and return
-	PathSegment *seg = segments[request.id];
+	PathSegment *seg = &(segments[request.id]);
 	response.heading = seg->heading;
 	response.distance = seg->distance;
 	return true;
