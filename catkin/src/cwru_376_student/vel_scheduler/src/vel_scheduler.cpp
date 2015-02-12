@@ -49,9 +49,9 @@ therefore, theta = 2*atan2(qz,qw)
 
 
 // set some dynamic limits...
-const double v_max = 0.8; //1m/sec is a slow walk
+const double v_max = 1.0; //1m/sec is a slow walk
 const double v_min = 0.1; // if command velocity too low, robot won't move
-const double a_max = 0.8; //1m/sec^2 is 0.1 g's
+const double a_max = 1.0; //1m/sec^2 is 0.1 g's
 //const double a_max_decel = 0.1; // TEST
 const double omega_max = 0.5; //1 rad/sec-> about 6 seconds to rotate 1 full rev
 const double alpha_max = 0.7; //0.5 rad/sec^2-> takes 2 sec to get from rest to full omega
@@ -155,9 +155,9 @@ void translationFunc (ros::Publisher& vel_cmd_publisher, double segment_length){
     //double segment_length = 100; // desired travel distance in meters; anticipate travelling multiple segments
     
     double segment_length_done = 0.0; // need to compute actual distance travelled within the current segment
-    double start_x = 0.0; // fill these in with actual values once odom message is received
-    double start_y = 0.0; // subsequent segment start coordinates should be specified relative to end of previous segment
     
+	double start_x = 0.0; // fill these in with actual values once odom message is received
+    double start_y = 0.0; // subsequent segment start coordinates should be specified relative to end of previous segment
     double start_phi = 0.0;
 
     double scheduled_vel = 0.0; //desired vel, assuming all is per plan
@@ -210,7 +210,7 @@ void translationFunc (ros::Publisher& vel_cmd_publisher, double segment_length){
         
         //use segment_length_done to decide what vel should be, as per plan
         if (dist_to_go <= 0.0) { // at goal, or overshot; stop!
-            scheduled_vel=0.0;
+            scheduled_vel = 0.0;
         }
         else if (halt_status.data == true) { // if user brake, then stop!
             scheduled_vel = 0.0;
@@ -219,7 +219,7 @@ void translationFunc (ros::Publisher& vel_cmd_publisher, double segment_length){
             // dist = 0.5*a*t_halt^2; so t_halt = sqrt(2*dist/a);   v = a*t_halt
             // so v = a*sqrt(2*dist/a) = sqrt(2*dist*a)
             scheduled_vel = sqrt(2 * dist_to_go * a_max);
-            ROS_INFO("braking zone: scheduled_vel = %f",scheduled_vel);
+            ROS_INFO("braking zone: scheduled_vel = %f", scheduled_vel);
         }
         else if (lidar_initialized && lidar_nearest.data <= 1.0) { // we might get the lidar alarm soon, so start slowing. First make sure we've gotten data from the lidar so that lidar_nearest will be initialized
             scheduled_vel = 0.0;
@@ -345,7 +345,7 @@ void rotationFunc (ros::Publisher& vel_cmd_publisher, double segment_radian){
             scheduled_vel = omega_max;
         }
         
-	odom_omega_ = fabs(odom_omega_);
+		odom_omega_ = fabs(odom_omega_);
 
         ROS_INFO("radian_to_go: %f, dist_decel: %f, odom_omega_: %f, scheduled_vel: %f", radian_to_go, dist_decel, odom_omega_, scheduled_vel);
         //how does the current velocity compare to the scheduled vel?
@@ -370,17 +370,17 @@ void rotationFunc (ros::Publisher& vel_cmd_publisher, double segment_radian){
     
         if (lidar_alarm_msg.data == true || estop_on.data == true) { // The robot should stop when either condition is true
             new_cmd_omega = 0.0;
-        ROS_INFO("Halted the robot. Halt status = %i; Lidar alarm = %i; Estop = %i", halt_status.data, lidar_alarm_msg.data, estop_on.data);
+			ROS_INFO("Halted the robot. Halt status = %i; Lidar alarm = %i; Estop = %i", halt_status.data, lidar_alarm_msg.data, estop_on.data);
         }
 
-	if (segment_radian < 0.0) {
-		new_cmd_omega = -new_cmd_omega;
+		if (segment_radian < 0.0) {
+			new_cmd_omega = -new_cmd_omega;
         }
     
         cmd_vel.linear.x = new_cmd_vel;
         cmd_vel.angular.z = new_cmd_omega; // spin command; always zero, in this example
         if (radian_to_go <= 0.05) { // if any of these conditions is true, the robot should stop
-            cmd_vel.angular.z = 0.0;;  //command vel=0
+            cmd_vel.angular.z = 0.0;  //command vel=0
         }
         vel_cmd_publisher.publish(cmd_vel); // publish the command to jinx/cmd_vel
         rtimer->sleep(); // sleep for remainder of timed iteration
@@ -396,11 +396,11 @@ void next_segment(ros::ServiceClient& client, int segment_ID, double& segment_ra
     srv.request.id = segment_ID; //requests the next segment by its segment id in the server
     
     if (client.call(srv)) { //check to see if that segment id exists
-            segment_radian = srv.response.heading; //load distance to rotate
-            segment_length = srv.response.distance; //load distance to move
+		segment_radian = srv.response.heading; //load distance to rotate
+		segment_length = srv.response.distance; //load distance to move
     } else {
-            segment_length = 0.0; //if segment does not exist do not move
-            segment_radian = 0.0;
+		segment_length = 0.0; //if segment does not exist do not move
+		segment_radian = 0.0;
     }
 
 	ROS_INFO("Recieved segment #%i with heading %f and length %f", segment_ID, segment_radian, segment_length);
@@ -435,20 +435,15 @@ int main(int argc, char **argv) {
     // Wait until path_planner is ready to send data to us
     path_planner::path_segment srv;
     srv.request.id = 0;
-    while (ros::ok()){
-	if(client.call(srv)){
-		break;
-	}
-	else{
+	while (!client.call(srv)){
 		rtimer->sleep();
 	}
-    }
 
     int segment_tot = 4;
     for (int segment_ID = 0; ros::ok() && segment_ID <= segment_tot; segment_ID++) {
-	double segment_radian = 0.0;
-	double segment_length = 0.0;
-	next_segment (client, segment_ID, segment_radian, segment_length);
+		double segment_radian = 0.0;
+		double segment_length = 0.0;
+		next_segment (client, segment_ID, segment_radian, segment_length);
         if (segment_ID == 1 || segment_ID == 3){
             rotationFunc(vel_cmd_publisher, segment_radian);//call rotationFunc           
         } else {
@@ -457,6 +452,7 @@ int main(int argc, char **argv) {
     } 
     ROS_INFO("completed move distance");
 
+	// clean up the dynamic memory
     delete rtimer;
 }            
 
