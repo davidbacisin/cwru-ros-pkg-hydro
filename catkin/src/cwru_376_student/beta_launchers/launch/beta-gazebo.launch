@@ -1,0 +1,15 @@
+<launch>
+
+	<!-- Launch Halt command node -->
+
+	<!-- Launch Lidar nodes -->
+	<node name="lidar_interpreter" pkg="lidar" type="lidar_interpreter" args="/laser/scan" respawn="true"></node>	
+	<node name="lidar_alarm" pkg="lidar" type="lidar_alarm" respawn="true"></node>
+
+	<!-- Launch Velocity Scheduler -->
+	<node name="vel_scheduler" pkg="vel_scheduler" type="vel_scheduler" args="/cmd_vel /odom" respawn="false"></node>
+
+	<!-- Launch Path Planner -->
+	<node name="path_planner" pkg="path_planner" type="path_planner" respawn="true"></node>
+
+</launch>

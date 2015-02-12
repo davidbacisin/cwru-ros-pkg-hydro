@@ -53,8 +53,8 @@ const double v_max = 0.8; //1m/sec is a slow walk
 const double v_min = 0.1; // if command velocity too low, robot won't move
 const double a_max = 0.8; //1m/sec^2 is 0.1 g's
 //const double a_max_decel = 0.1; // TEST
-const double omega_max = 1.0; //1 rad/sec-> about 6 seconds to rotate 1 full rev
-const double alpha_max = 0.5; //0.5 rad/sec^2-> takes 2 sec to get from rest to full omega
+const double omega_max = 0.5; //1 rad/sec-> about 6 seconds to rotate 1 full rev
+const double alpha_max = 0.7; //0.5 rad/sec^2-> takes 2 sec to get from rest to full omega
 const double DT = 0.050; // choose an update rate of 20Hz; go faster with actual hardware
 
 // globals for communication w/ callbacks:
@@ -63,6 +63,8 @@ double odom_omega_ = 0.0; // measured/published system yaw rate (spin)
 double odom_x_=  0.0;
 double odom_y_ = 0.0;
 double odom_phi_ = 0.0;
+double odom_quat_z_ = 0.0;
+double odom_quat_w_ = 0.0;
 double dt_odom_ = 0.0;
 ros::Time t_last_callback_;
 double dt_callback_= 0.0;
@@ -71,6 +73,8 @@ std_msgs::Float32 lidar_nearest;
 bool lidar_initialized = false;
 std_msgs::Bool estop_on;
 std_msgs::Bool halt_status;
+
+ros::Rate *rtimer; // frequency corresponding to chosen sample period DT; the main loop will run this fast
 
 // receive odom messages and strip off the components we want to use
 // tested this OK w/ stdr
@@ -99,6 +103,8 @@ void odomCallback(const nav_msgs::Odometry& odom_rcvd) {
     double quat_z = odom_rcvd.pose.pose.orientation.z;
     double quat_w = odom_rcvd.pose.pose.orientation.w;
     odom_phi_ = 2.0*atan2(quat_z, quat_w); // cheap conversion from quaternion to heading for planar motion
+    odom_quat_z_ = quat_z;
+    odom_quat_w_ = quat_w;
 
     // the output below could get annoying; may comment this out, but useful initially for debugging
     ROS_INFO("odom CB: x = %f, y= %f, phi = %f, v = %f, omega = %f", odom_x_, odom_y_, odom_phi_, odom_vel_, odom_omega_);
@@ -143,8 +149,7 @@ void eStopStatusCallback(const std_msgs::Bool& ess_rcvd){
     estop_on.data = !ess_rcvd.data;
 }
 
-void translationFunc (double segment_length, double new_cmd_vel){
-    ros::Rate rtimer(1 / DT); // frequency corresponding to chosen sample period DT; the main loop will run this fast
+void translationFunc (ros::Publisher& vel_cmd_publisher, double segment_length){
     // here is a crude description of one segment of a journey.  Will want to generalize this to handle multiple segments
     // define the desired path length of this segment, segment_1, linear advancing
     //double segment_length = 100; // desired travel distance in meters; anticipate travelling multiple segments
@@ -173,7 +178,7 @@ void translationFunc (double segment_length, double new_cmd_vel){
     ROS_INFO("waiting for valid odom callback...");
     t_last_callback_ = ros::Time::now(); // initialize reference for computed update rate of callback
     while (odom_omega_ > 1000) {
-        rtimer.sleep();
+        rtimer->sleep();
         ros::spinOnce();
     }
     ROS_INFO("received odom message; proceeding");
@@ -191,7 +196,6 @@ void translationFunc (double segment_length, double new_cmd_vel){
     double T_const_v = dist_const_v / v_max; //will be <0 if don't get to full speed
     double T_segment_tot = T_accel + T_decel + T_const_v; // expected duration of this move
 
-    //dist_decel*= 2.0; // TEST TEST TEST
     while (ros::ok()) // do work here in infinite loop (desired for this example), but terminate if detect ROS has faulted (or ctl-C)
     {
         ros::spinOnce(); // allow callbacks to populate fresh data
@@ -217,7 +221,7 @@ void translationFunc (double segment_length, double new_cmd_vel){
             scheduled_vel = sqrt(2 * dist_to_go * a_max);
             ROS_INFO("braking zone: scheduled_vel = %f",scheduled_vel);
         }
-        else if (lidar_initialized && lidar_nearest.data <= 1.5) { // we might get the lidar alarm soon, so start slowing. First make sure we've gotten data from the lidar so that lidar_nearest will be initialized
+        else if (lidar_initialized && lidar_nearest.data <= 1.0) { // we might get the lidar alarm soon, so start slowing. First make sure we've gotten data from the lidar so that lidar_nearest will be initialized
             scheduled_vel = 0.0;
             ROS_INFO("lidar caution zone: scheduled_vel = %f",scheduled_vel);
         }
@@ -256,19 +260,20 @@ void translationFunc (double segment_length, double new_cmd_vel){
             cmd_vel.linear.x = 0.0;  //command vel=0
         }
         vel_cmd_publisher.publish(cmd_vel); // publish the command to jinx/cmd_vel
-        rtimer.sleep(); // sleep for remainder of timed iteration
+        rtimer->sleep(); // sleep for remainder of timed iteration
         if (dist_to_go <= 0.0) break; // halt this node when this segment is complete.
         // will want to generalize this to handle multiple segments
         // ideally, will want to receive segments dynamically as publications from a higher-level planner
     }    
 }
-void rotationFunc (double segment_radian, double new_cmd_omega){
-    ros::Rate rtimer(1 / DT); // frequency corresponding to chosen sample period DT; the main loop will run this fast
+void rotationFunc (ros::Publisher& vel_cmd_publisher, double segment_radian){
     double segment_radian_done = 0.0; // need to compute actual distance travelled within the current segment
     double start_x = 0.0; // fill these in with actual values once odom message is received
     double start_y = 0.0; // subsequent segment start coordinates should be specified relative to end of previous segment
     
     double start_phi = 0.0;
+    double start_quat_z = 0.0,
+	   start_quat_w = 0.0;
 
     double scheduled_vel = 0.0; //desired vel, assuming all is per plan
     double new_cmd_vel = 0.0; // value of speed to be commanded; update each iteration
@@ -288,13 +293,15 @@ void rotationFunc (double segment_radian, double new_cmd_omega){
     ROS_INFO("waiting for valid odom callback...");
     t_last_callback_ = ros::Time::now(); // initialize reference for computed update rate of callback
     while (odom_omega_ > 1000) {
-        rtimer.sleep();
+        rtimer->sleep();
         ros::spinOnce();
     }
     ROS_INFO("received odom message; proceeding");
     start_x = odom_x_;
     start_y = odom_y_;
     start_phi = odom_phi_;
+    start_quat_z = odom_quat_z_;
+    start_quat_w = odom_quat_w_;
     ROS_INFO("start pose: x %f, y= %f, phi = %f", start_x, start_y, start_phi);
 
     // compute some properties of trapezoidal velocity profile plan:
@@ -312,14 +319,13 @@ void rotationFunc (double segment_radian, double new_cmd_omega){
         ros::spinOnce(); // allow callbacks to populate fresh data
         // compute distance travelled so far:
 
-        double delta_phi = odom_phi_ - start_phi;
-        double segment_radian_done = sqrt(delta_phi * delta_phi);
-        ROS_INFO("dist travelled: %f",segment_radian_done);
-        double radian_to_go = -(segment_radian + segment_radian_done);
-        
-        ROS_INFO("Lidar nearest: %f", lidar_nearest.data);
+	// compute the angle between the start and current orientation
+        double segment_radian_done = acos(2.0*pow(odom_quat_z_ * start_quat_z + odom_quat_w_ * start_quat_w, 2)-1.0);
+        //ROS_INFO("dist travelled: %f",segment_radian_done);
+        double radian_to_go = fabs(segment_radian) - fabs(segment_radian_done);
+        //ROS_INFO("Lidar nearest: %f", lidar_nearest.data);
         //use segment_length_done to decide what vel should be, as per plan
-        if (radian_to_go <= 0.0) { // at goal, or overshot; stop!
+        if (radian_to_go <= 0.05) { // at goal, or overshot; stop!
             scheduled_vel = 0.0;
         }
         else if (halt_status.data == true) { // if user brake, then stop!
@@ -328,17 +334,20 @@ void rotationFunc (double segment_radian, double new_cmd_omega){
         else if (radian_to_go <= dist_decel) { // possibly should be braking to a halt
             // dist = 0.5*a*t_halt^2; so t_halt = sqrt(2*dist/a);   v = a*t_halt
             // so v = a*sqrt(2*dist/a) = sqrt(2*dist*a)
-            scheduled_vel = -sqrt(2 * radian_to_go * alpha_max);
+            scheduled_vel = sqrt(2 * radian_to_go * alpha_max);
             ROS_INFO("braking zone: scheduled_vel = %f",scheduled_vel);
         }
-        if (lidar_initialized && lidar_nearest.data <= 1.5) { // we might get the lidar alarm soon, so start slowing. First make sure we've gotten data from the lidar so that lidar_nearest will be initialized
+        else if (lidar_initialized && lidar_nearest.data <= 1.0) { // we might get the lidar alarm soon, so start slowing. First make sure we've gotten data from the lidar so that lidar_nearest will be initialized
         scheduled_vel = 0.0;
         	ROS_INFO("lidar caution zone: scheduled_vel = %f",scheduled_vel);
         }
         else { // not ready to decel, so target vel is v_max, either accel to it or hold it
-            scheduled_vel = -omega_max;
+            scheduled_vel = omega_max;
         }
         
+	odom_omega_ = fabs(odom_omega_);
+
+        ROS_INFO("radian_to_go: %f, dist_decel: %f, odom_omega_: %f, scheduled_vel: %f", radian_to_go, dist_decel, odom_omega_, scheduled_vel);
         //how does the current velocity compare to the scheduled vel?
         if (odom_omega_ < scheduled_vel) {  // maybe we halted, e.g. due to estop or obstacle;
             // may need to ramp up to v_max; do so within accel limits
@@ -363,38 +372,38 @@ void rotationFunc (double segment_radian, double new_cmd_omega){
             new_cmd_omega = 0.0;
         ROS_INFO("Halted the robot. Halt status = %i; Lidar alarm = %i; Estop = %i", halt_status.data, lidar_alarm_msg.data, estop_on.data);
         }
+
+	if (segment_radian < 0.0) {
+		new_cmd_omega = -new_cmd_omega;
+        }
     
         cmd_vel.linear.x = new_cmd_vel;
         cmd_vel.angular.z = new_cmd_omega; // spin command; always zero, in this example
-        if (radian_to_go <= 0.0) { // if any of these conditions is true, the robot should stop
+        if (radian_to_go <= 0.05) { // if any of these conditions is true, the robot should stop
             cmd_vel.angular.z = 0.0;;  //command vel=0
         }
         vel_cmd_publisher.publish(cmd_vel); // publish the command to jinx/cmd_vel
-        rtimer.sleep(); // sleep for remainder of timed iteration
-        if (radian_to_go <= 0.0) break; // halt this node when this segment is complete.
+        rtimer->sleep(); // sleep for remainder of timed iteration
+        if (radian_to_go <= 0.05) break; // halt this node when this segment is complete.
         // will want to generalize this to handle multiple segments
         // ideally, will want to receive segments dynamically as publications from a higher-level planner
     }
 }
 
-double next_segment(int segment_ID) {  //function to determine what value to load for move instructions
-
+void next_segment(ros::ServiceClient& client, int segment_ID, double& segment_radian, double& segment_length) {  //function to determine what value to load for move instructions
+    //instantiated an object of a consistent type for requests and responses with:
+    path_planner::path_segment srv;
     srv.request.id = segment_ID; //requests the next segment by its segment id in the server
-    double segment_length = 0.0; //initializes local variable that is passed to main function
-    double segment_radian = 0.0;
-    double new_cmd_vel = 0.0;
-    double new_cmd_omega = 0.0;
     
     if (client.call(srv)) { //check to see if that segment id exists
-	if (fabs(srv.response.heading) > srv.response.distance){ //if the segment id does exist, determine whether it is a rotate or move command
             segment_radian = srv.response.heading; //load distance to rotate
-        } else if{
             segment_length = srv.response.distance; //load distance to move
-        } else {
+    } else {
             segment_length = 0.0; //if segment does not exist do not move
             segment_radian = 0.0;
-        }
-    return dist_to_go; //return value to main vel_scheduler
+    }
+
+	ROS_INFO("Recieved segment #%i with heading %f and length %f", segment_ID, segment_radian, segment_length);
 }
 
 
@@ -413,21 +422,41 @@ int main(int argc, char **argv) {
     ros::Subscriber sub_lidar_alarm = nh.subscribe("lidar_alarm", 1, lidarAlarmCallback);
     ros::Subscriber sub_lidar_nearest = nh.subscribe("lidar_nearest", 1, lidarNearestCallback);
     ros::Subscriber sub_estop_status = nh.subscribe("estop_status", 1, eStopStatusCallback);
+ 
+    // initialize the timer
+    rtimer = new ros::Rate(1.0 / DT);
 
     //creates a ROS “ServiceClient”. This service client expects to communicate requests and responses 
     //as defined in: path_planne::path_segment. Also, this service client expects to communicate with 
     //a named service, called "path_planner_service". 
     //this is the service name that David  had defined inside of path_planner node.
-    ros::ServiceClient client = nh.serviceClient<PathPlanner::PathPlanner>("path_planner_service"); //initializes service client that is responsible for acquiring the next move instruction
-
+    ros::ServiceClient client = nh.serviceClient<path_planner::path_segment>("path_planner_service"); //initializes service client that is responsible for acquiring the next move instruction
     
-    //instantiated an object of a consistent type for requests and responses with:
+    // Wait until path_planner is ready to send data to us
     path_planner::path_segment srv;
-        if (segment_ID = 1 || segment_ID = 3){
-            rotationFunc;//call rotationFunc           
+    srv.request.id = 0;
+    while (ros::ok()){
+	if(client.call(srv)){
+		break;
+	}
+	else{
+		rtimer->sleep();
+	}
+    }
+
+    int segment_tot = 4;
+    for (int segment_ID = 0; ros::ok() && segment_ID <= segment_tot; segment_ID++) {
+	double segment_radian = 0.0;
+	double segment_length = 0.0;
+	next_segment (client, segment_ID, segment_radian, segment_length);
+        if (segment_ID == 1 || segment_ID == 3){
+            rotationFunc(vel_cmd_publisher, segment_radian);//call rotationFunc           
         } else {
-            translationFunc;//call translationFunc    
+            translationFunc(vel_cmd_publisher, segment_length);//call translationFunc    
         }
+    } 
     ROS_INFO("completed move distance");
+
+    delete rtimer;
 }            
 
