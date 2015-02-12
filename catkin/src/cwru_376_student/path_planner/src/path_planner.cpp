@@ -35,8 +35,7 @@ private:
 public:
 	PathPlanner(ros::NodeHandle& nh);
 	// callback for when a node wants a path segment
-	static bool serviceCallback(path_planner::path_segmentRequest& request,
-								path_planner::path_segmentResponse& response);
+	static bool serviceCallback(path_planner::path_segmentRequest& request, path_planner::path_segmentResponse& response);
 };
 
 PathPlanner::PathPlanner(ros::NodeHandle& nh) {
