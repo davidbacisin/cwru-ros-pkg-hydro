@@ -55,7 +55,7 @@ const double a_max = 1.0; //1m/sec^2 is 0.1 g's
 //const double a_max_decel = 0.1; // TEST
 const double omega_max = 0.5; //1 rad/sec-> about 6 seconds to rotate 1 full rev
 const double alpha_max = 0.7; //0.5 rad/sec^2-> takes 2 sec to get from rest to full omega
-const double DT = 0.050; // choose an update rate of 20Hz; go faster with actual hardware
+const double DT = 1.0/50.0; // choose an update rate of 50Hz
 
 // globals for communication w/ callbacks:
 double odom_vel_ = 0.0; // measured/published system speed
@@ -85,6 +85,7 @@ ros::Rate *rtimer; // frequency corresponding to chosen sample period DT; the ma
 void odomCallback(const nav_msgs::Odometry& odom_rcvd) {
     //here's a trick to compute the delta-time between successive callbacks:
     dt_callback_ = (ros::Time::now() - t_last_callback_).toSec();
+    //ROS_INFO("dt_callback_: %f", dt_callback_);
     t_last_callback_ = ros::Time::now(); // let's remember the current time, and use it next iteration
 
     if (dt_callback_ > 0.15) { // on start-up, and with occasional hiccups, this delta-time can be unexpectedly large
@@ -228,11 +229,12 @@ void translationFunc (ros::Publisher& vel_cmd_publisher, double segment_length){
         else { // not ready to decel, so target vel is v_max, either accel to it or hold it
             scheduled_vel = v_max;
         }
-        
+
         //how does the current velocity compare to the scheduled vel?
         if (odom_vel_ < scheduled_vel) {  // maybe we halted, e.g. due to estop or obstacle;
             // may need to ramp up to v_max; do so within accel limits
             double v_test = odom_vel_ + a_max*dt_callback_; // if callbacks are slow, this could be abrupt
+	    ROS_INFO("v_test: %f, a_max: %f, dt_callback_: %f", v_test, a_max, dt_callback_);
             // operator:  c = (a>b) ? a : b;
             new_cmd_vel = (v_test < scheduled_vel) ? v_test : scheduled_vel; //choose lesser of two options
             // this prevents overshooting scheduled_vel
@@ -247,7 +249,7 @@ void translationFunc (ros::Publisher& vel_cmd_publisher, double segment_length){
         } else {
             new_cmd_vel = scheduled_vel; //silly third case: this is already true, if here.  Issue the scheduled velocity
         }
-        ROS_INFO("cmd vel: %f",new_cmd_vel); // debug output
+        ROS_INFO("scheduled_vel: %f, odom_vel_: %f, new_cmd_vel: %f", scheduled_vel, odom_vel_, new_cmd_vel);
     
         if (lidar_alarm_msg.data == true || estop_on.data == true) { // The robot should stop when either condition is true
             new_cmd_vel = 0.0;

@@ -17,11 +17,14 @@ public:
 // Define the list of path segments, in order.
 // The array index becomes the ID of the segment.
 PathSegment path_segments_[] = {
-	PathSegment(0.0, 4.4),
+	PathSegment(0.0, 1.0),
+	PathSegment(M_PI/2.0, 0.0),
+	PathSegment(-M_PI/2.0, 0.0)
+	/*PathSegment(0.0, 4.4),
 	PathSegment(-M_PI/2.1, 0.0),
 	PathSegment(0.0, 12.2),
 	PathSegment(-M_PI/2.0, 0.0),
-	PathSegment(0.0, 5.0)
+	PathSegment(0.0, 5.0)*/
 };
 
 // PathPlanner singleton 
