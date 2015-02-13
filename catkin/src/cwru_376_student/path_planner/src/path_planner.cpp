@@ -48,7 +48,7 @@ PathPlanner::PathPlanner(ros::NodeHandle& nh) {
 	// specify the path segments
 	segments = path_segments_;
 	// the number of segments
-	segment_count = 5;
+	segment_count = 3;
 	// create and broadcast the service
 	service = nh.advertiseService("path_planner_service", serviceCallback);
 	ROS_INFO("Ready to fulfill path segment requests");
