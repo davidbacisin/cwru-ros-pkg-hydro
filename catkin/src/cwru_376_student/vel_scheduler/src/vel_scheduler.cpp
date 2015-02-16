@@ -150,6 +150,36 @@ void eStopStatusCallback(const std_msgs::Bool& ess_rcvd){
     estop_on.data = !ess_rcvd.data;
 }
 
+double getRampingFactor(double remaining, double vel, double acc){
+	double ramping_factor = 0.0,
+		time_to_decel = vel/acc;
+		dist_decel = 0.5 * acc * (time_to_decel * time_to_decel);
+	if (remaining <= 0.0) { // at goal, or overshot; stop!
+		ramping_factor = 0.0;
+	}
+	else if (halt_status.data == true) { // if user brake, then stop!
+		ramping_factor = 0.0;
+	}
+	else if (remaining <= dist_decel) { // possibly should be braking to a halt
+		// dist = 0.5*a*t_halt^2; so t_halt = sqrt(2*dist/a);   v = a*t_halt
+		// so v = a*sqrt(2*dist/a) = sqrt(2*dist*a)
+		// and factor = sqrt(2*dist*a)/v_max
+		ramping_factor = sqrt(2 * remaining * acc) / vel;
+		ROS_INFO("braking zone: ramping_factor = %f", ramping_factor);
+	}
+	else if (lidar_initialized && // make sure we've gotten data from the lidar so that lidar_nearest will be initialized
+			 lidar_nearest.data <= 1.0) { // we might get the lidar alarm soon, so start slowing
+		dist_to_stop = lidar_nearest.data - 0.5;
+		ramping_factor = sqrt(2 * dist_to_stop * acc) / vel;
+		// ramping_factor = 0.0;
+		ROS_INFO("lidar caution zone: ramping_factor = %f", ramping_factor);
+	}
+	else { // not ready to decel, so target vel is v_max, either accel to it or hold it
+		ramping_factor = 1.0;
+	}
+	return ramping_factor;
+}
+
 void translationFunc (ros::Publisher& vel_cmd_publisher, double segment_length){
     // here is a crude description of one segment of a journey.  Will want to generalize this to handle multiple segments
     // define the desired path length of this segment, segment_1, linear advancing

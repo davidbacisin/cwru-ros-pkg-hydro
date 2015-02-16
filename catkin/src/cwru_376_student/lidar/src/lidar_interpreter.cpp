@@ -1,6 +1,7 @@
 #include <ros/ros.h>
 #include <sensor_msgs/LaserScan.h>
 #include <std_msgs/Float32.h>
+#include <string>
 
 class LidarInterpreter {
 private:
@@ -128,6 +129,15 @@ void LidarInterpreter::smoothPing(int index, sensor_msgs::LaserScan& laser_scan)
 int main(int argc, char *argv[]) {
     ros::init(argc, argv, "lidar_interpreter"); // name this node
     ros::NodeHandle nh;
+	
+	std::string lidar_topic;
+	if (nh.getParam('lidar_topic', lidar_topic)){
+		LidarInterpreter lidar_interpreter(nh, lidar_topic);
+	}
+	else {
+		ROS_WARN("lidar_interpreter needs the param lidar_topic");
+	}
+	/*
 	// argv[1] should be the name of the topic on which to get the LIDAR data
     if (argc < 2) {
 		ROS_INFO("LidarInterpreter needs the name of the LIDAR topic as the first argument");
@@ -138,5 +148,6 @@ int main(int argc, char *argv[]) {
 		// do nothing; delegate further processing to callbacks
 		ros::spin();
 	}
+	*/
     return 0;
 }

@@ -12,7 +12,7 @@ private:
 	// track the current state of the alarm
 	bool isAlarmed;
 	// the closest something can be before the alarm is raised (meters)
-	float minimum_safe_distance;
+	double minimum_safe_distance;
 public:
 	LidarAlarm(ros::NodeHandle& nh);
 	// callback for when the lidar_nearest has data
@@ -28,8 +28,11 @@ LidarAlarm::LidarAlarm(ros::NodeHandle& nh) {
 	lidar_alarm = nh.advertise<std_msgs::Bool>("lidar_alarm", 1);
 	// by default, alarm is off
 	isAlarmed = false;
-	// set minimum_safe_distance
-	minimum_safe_distance = 0.5; // meters
+	// get the minimum_safe_distance from the Param Server. If not, set to 0.5 m.
+	if (!nh.getParam("lidar_safe_distance", minimum_safe_distance)){
+		ROS_WARN("lidar_safe_distance param should be specified for lidar_alarm");
+		minimum_safe_distance = 0.5; // meters
+	}
 };
 
 LidarAlarm *LidarAlarm::instance;
