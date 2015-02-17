@@ -49,13 +49,13 @@ therefore, theta = 2*atan2(qz,qw)
 
 
 // set some dynamic limits...
-const double v_max = 0.9; //1m/sec is a slow walk
-const double v_min = 0.1; // if command velocity too low, robot won't move
-const double a_max = 0.3; //1m/sec^2 is 0.1 g's
+double v_max = 0.9; //1m/sec is a slow walk
+double v_min = 0.1; // if command velocity too low, robot won't move
+double a_max = 0.3; //1m/sec^2 is 0.1 g's
 //const double a_max_decel = 0.1; // TEST
-const double omega_max = 0.5; //1 rad/sec-> about 6 seconds to rotate 1 full rev
-const double alpha_max = 0.7; //0.5 rad/sec^2-> takes 2 sec to get from rest to full omega
-const double DT = 1.0/50.0; // choose an update rate of 50Hz
+double omega_max = 0.5; //1 rad/sec-> about 6 seconds to rotate 1 full rev
+double alpha_max = 0.7; //0.5 rad/sec^2-> takes 2 sec to get from rest to full omega
+double DT = 1.0/50.0; // choose an update rate of 50Hz
 
 // globals for communication w/ callbacks:
 double odom_vel_ = 0.0; // measured/published system speed
@@ -76,14 +76,13 @@ std_msgs::Bool halt_status;
 
 ros::Rate *rtimer; // frequency corresponding to chosen sample period DT; the main loop will run this fast
 
-void getParams(ros::NodeHandle nh){
+void getParams(ros::NodeHandle& nh){
 	// get the velocity/acceleration max values as specified by ROS params
-	// fallback to default value (third parameter)
-	//const double v_max_default = 1.0;
-	//nh.param<double>("max_linear_velocity", v_max, v_max_default);
-	//nh.param<double>("max_linear_acceleration", a_max, 0.5);
-	//nh.param<double>("max_angular_velocity", omega_max, 1.0);
-	//nh.param<double>("max_angular_acceleration", alpha_max, 1.0);
+	// third param is the default value
+	nh.param("/vel_scheduler/max_linear_velocity", v_max, 1.0);
+	nh.param("/vel_scheduler/max_linear_acceleration", a_max, 1.0);
+	nh.param("/vel_scheduler/max_angular_velocity", omega_max, 1.0);
+	nh.param("/vel_scheduler/max_angular_acceleration", alpha_max, 0.5);
 }
 
 // receive odom messages and strip off the components we want to use
@@ -454,21 +453,21 @@ int main(int argc, char **argv) {
     //create a publisher object that can talk to ROS and issue twist messages on named topic;
     // note: this is customized for stdr robot; would need to change the topic to talk to jinx, etc.
     
-    if (argc < 3) {
+    /*if (argc < 3) {
         ROS_INFO("Velocity scheduler needs a topic name to published");
-    }
-	/*std::string cmd_vel_topic,
-				odom_topic;
-	if (!nh.getParam("cmd_vel_topic", cmd_vel_topic)){
+    }*/
+	std::string cmd_vel_topic,
+		odom_topic;
+	if (!nh.getParam("/vel_scheduler/cmd_vel_topic", cmd_vel_topic)){
 		ROS_WARN("vel_scheduler needs ROS param cmd_vel_topic");
 		return 0;
 	}
-	if (!nh.getParam("odom_topic", odom_topic)){
+	if (!nh.getParam("/vel_scheduler/odom_topic", odom_topic)){
 		ROS_WARN("vel_scheduler needs a ROS param odom_topic");
 		return 0;
-	}*/
-    ros::Publisher vel_cmd_publisher = nh.advertise<geometry_msgs::Twist>(argv[1], 1);
-    ros::Subscriber sub_odom = nh.subscribe(argv[2], 1, odomCallback);
+	}
+    ros::Publisher vel_cmd_publisher = nh.advertise<geometry_msgs::Twist>(cmd_vel_topic, 1);
+    ros::Subscriber sub_odom = nh.subscribe(odom_topic, 1, odomCallback);
     ros::Subscriber sub_halt = nh.subscribe("user_brake", 1, haltCallback);
     ros::Subscriber sub_lidar_alarm = nh.subscribe("lidar_alarm", 1, lidarAlarmCallback);
     ros::Subscriber sub_lidar_nearest = nh.subscribe("lidar_nearest", 1, lidarNearestCallback);
@@ -484,8 +483,8 @@ int main(int argc, char **argv) {
     ros::ServiceClient client = nh.serviceClient<path_planner::path_segment>("path_planner_service"); //initializes service client that is responsible for acquiring the next move instruction
     
 	// load v_max, a_max, etc from the param server
-	//getParams(nh);
-	
+	getParams(nh);
+
     // Wait until path_planner is ready to send data to us
     path_planner::path_segment srv;
     srv.request.id = 0;
