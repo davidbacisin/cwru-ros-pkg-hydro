@@ -28,14 +28,14 @@ private:
     static void smoothPing(int index, sensor_msgs::LaserScan& laser_scan);
 	
 public:
-    LidarInterpreter(ros::NodeHandle& nh, char *lidar_topic);
+    LidarInterpreter(ros::NodeHandle& nh, std::string lidar_topic);
 	// callback for when the LIDAR has data
 	static void laserCallback(const sensor_msgs::LaserScan& laser_scan);
 };
 
 LidarInterpreter *LidarInterpreter::instance;
 
-LidarInterpreter::LidarInterpreter(ros::NodeHandle& nh, char *lidar_topic) {
+LidarInterpreter::LidarInterpreter(ros::NodeHandle& nh, std::string lidar_topic) {
 	// set the instance variable
 	instance = this;
 	// subscribe to the LIDAR
@@ -129,9 +129,9 @@ void LidarInterpreter::smoothPing(int index, sensor_msgs::LaserScan& laser_scan)
 int main(int argc, char *argv[]) {
     ros::init(argc, argv, "lidar_interpreter"); // name this node
     ros::NodeHandle nh;
-	
+
 	std::string lidar_topic;
-	if (nh.getParam('lidar_topic', lidar_topic)){
+	if (nh.getParam("/lidar_interpreter/lidar_topic", lidar_topic)){
 		LidarInterpreter lidar_interpreter(nh, lidar_topic);
 	}
 	else {

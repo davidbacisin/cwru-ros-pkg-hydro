@@ -29,7 +29,7 @@ LidarAlarm::LidarAlarm(ros::NodeHandle& nh) {
 	// by default, alarm is off
 	isAlarmed = false;
 	// get the minimum_safe_distance from the Param Server. If not, set to 0.5 m.
-	if (!nh.getParam("lidar_safe_distance", minimum_safe_distance)){
+	if (!nh.getParam("/lidar_alarm/lidar_safe_distance", minimum_safe_distance)){
 		ROS_WARN("lidar_safe_distance param should be specified for lidar_alarm");
 		minimum_safe_distance = 0.5; // meters
 	}

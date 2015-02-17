@@ -152,7 +152,7 @@ void eStopStatusCallback(const std_msgs::Bool& ess_rcvd){
 
 double getRampingFactor(double remaining, double vel, double acc){
 	double ramping_factor = 0.0,
-		time_to_decel = vel/acc;
+		time_to_decel = vel/acc,
 		dist_decel = 0.5 * acc * (time_to_decel * time_to_decel);
 	if (remaining <= 0.0) { // at goal, or overshot; stop!
 		ramping_factor = 0.0;
@@ -169,7 +169,7 @@ double getRampingFactor(double remaining, double vel, double acc){
 	}
 	else if (lidar_initialized && // make sure we've gotten data from the lidar so that lidar_nearest will be initialized
 			 lidar_nearest.data <= 1.0) { // we might get the lidar alarm soon, so start slowing
-		dist_to_stop = lidar_nearest.data - 0.5;
+		double dist_to_stop = lidar_nearest.data - 0.5;
 		ramping_factor = sqrt(2 * dist_to_stop * acc) / vel;
 		// ramping_factor = 0.0;
 		ROS_INFO("lidar caution zone: ramping_factor = %f", ramping_factor);
