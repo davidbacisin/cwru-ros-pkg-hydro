@@ -6,6 +6,7 @@
 	<include file="$(find lidar)/launch/lidar-stdr.launch" />
 
 	<!-- Launch Velocity Scheduler -->
+	<!-- include file="$(find vel_scheduler)/launch/vel-scheduler.launch" / -->
 	<node name="vel_scheduler" pkg="vel_scheduler" type="vel_scheduler" args="/robot0/cmd_vel /robot0/odom" respawn="false"></node>
 
 	<!-- Launch Path Planner -->

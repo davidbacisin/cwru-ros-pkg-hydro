@@ -4,6 +4,6 @@
 		<param name="lidar_topic" type="str" value="/robot0/laser_0" />
 	</node>	
 	<node name="lidar_alarm" pkg="lidar" type="lidar_alarm" respawn="true">
-		<param name="lidar_safe_distance" type="double" value="2.5" />
+		<param name="lidar_safe_distance" type="double" value="0.5" />
 	</node>	
 </launch>

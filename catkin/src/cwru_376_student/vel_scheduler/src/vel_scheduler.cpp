@@ -79,10 +79,11 @@ ros::Rate *rtimer; // frequency corresponding to chosen sample period DT; the ma
 void getParams(ros::NodeHandle nh){
 	// get the velocity/acceleration max values as specified by ROS params
 	// fallback to default value (third parameter)
-	nh.param("max_linear_velocity", v_max, 1.0);
-	nh.param("max_linear_acceleration", a_max, 0.5);
-	nh.param("max_angular_velocity", omega_max, 1.0);
-	nh.param("max_angular_acceleration", alpha_max, 1.0);
+	//const double v_max_default = 1.0;
+	//nh.param<double>("max_linear_velocity", v_max, v_max_default);
+	//nh.param<double>("max_linear_acceleration", a_max, 0.5);
+	//nh.param<double>("max_angular_velocity", omega_max, 1.0);
+	//nh.param<double>("max_angular_acceleration", alpha_max, 1.0);
 }
 
 // receive odom messages and strip off the components we want to use
@@ -456,7 +457,7 @@ int main(int argc, char **argv) {
     if (argc < 3) {
         ROS_INFO("Velocity scheduler needs a topic name to published");
     }
-	std::string cmd_vel_topic,
+	/*std::string cmd_vel_topic,
 				odom_topic;
 	if (!nh.getParam("cmd_vel_topic", cmd_vel_topic)){
 		ROS_WARN("vel_scheduler needs ROS param cmd_vel_topic");
@@ -465,9 +466,9 @@ int main(int argc, char **argv) {
 	if (!nh.getParam("odom_topic", odom_topic)){
 		ROS_WARN("vel_scheduler needs a ROS param odom_topic");
 		return 0;
-	}
-    ros::Publisher vel_cmd_publisher = nh.advertise<geometry_msgs::Twist>(cmd_vel_topic, 1);
-    ros::Subscriber sub_odom = nh.subscribe(odom_topic, 1, odomCallback);
+	}*/
+    ros::Publisher vel_cmd_publisher = nh.advertise<geometry_msgs::Twist>(argv[1], 1);
+    ros::Subscriber sub_odom = nh.subscribe(argv[2], 1, odomCallback);
     ros::Subscriber sub_halt = nh.subscribe("user_brake", 1, haltCallback);
     ros::Subscriber sub_lidar_alarm = nh.subscribe("lidar_alarm", 1, lidarAlarmCallback);
     ros::Subscriber sub_lidar_nearest = nh.subscribe("lidar_nearest", 1, lidarNearestCallback);
@@ -483,7 +484,7 @@ int main(int argc, char **argv) {
     ros::ServiceClient client = nh.serviceClient<path_planner::path_segment>("path_planner_service"); //initializes service client that is responsible for acquiring the next move instruction
     
 	// load v_max, a_max, etc from the param server
-	getParams();
+	//getParams(nh);
 	
     // Wait until path_planner is ready to send data to us
     path_planner::path_segment srv;
