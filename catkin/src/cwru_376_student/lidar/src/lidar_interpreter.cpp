@@ -132,8 +132,8 @@ int main(int argc, char *argv[]) {
 
 	std::string lidar_topic;
 	if (nh.getParam("/lidar_interpreter/lidar_topic", lidar_topic)){
-		ROS_INFO(lidar_topic);
 		LidarInterpreter lidar_interpreter(nh, lidar_topic);
+		ros::spin();
 	}
 	else {
 		ROS_WARN("lidar_interpreter needs the param lidar_topic");
