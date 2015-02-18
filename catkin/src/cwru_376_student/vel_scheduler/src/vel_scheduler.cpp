@@ -1,8 +1,3 @@
-
-// try this, e.g. with roslaunch stdr_launchers server_with_map_and_gui_plus_robot.launch
-// or:  roslaunch cwru_376_launchers stdr_glennan_2.launch 
-// watch resulting velocity commands with: rqt_plot /robot0/cmd_vel/linear/x (or jinx/cmd_vel...)
-
 //intent of this program: modulate the velocity command to comply with a speed limit, v_max,
 // acceleration limits, +/-a_max, and come to a halt gracefully at the end of
 // an intended line segment
@@ -41,12 +36,11 @@ therefore, theta = 2*atan2(qz,qw)
 #include <ros/ros.h>
 #include <geometry_msgs/Twist.h>
 #include <nav_msgs/Odometry.h>
-#include <std_msgs/Float64.h>
 #include <std_msgs/Float32.h> //Including the Float32 class from std_msgs
 #include <std_msgs/Bool.h> // boolean message time
 #include <path_planner/path_segment.h> // the service message class
 #include <math.h>
-
+#include <string>
 
 // set some dynamic limits...
 double v_max = 0.9; //1m/sec is a slow walk
@@ -56,6 +50,7 @@ double a_max = 0.3; //1m/sec^2 is 0.1 g's
 double omega_max = 0.5; //1 rad/sec-> about 6 seconds to rotate 1 full rev
 double alpha_max = 0.7; //0.5 rad/sec^2-> takes 2 sec to get from rest to full omega
 double DT = 1.0/50.0; // choose an update rate of 50Hz
+double radian_to_go_error = 0.05;
 
 // globals for communication w/ callbacks:
 double odom_vel_ = 0.0; // measured/published system speed
@@ -136,9 +131,7 @@ void lidarAlarmCallback(const std_msgs::Bool& la_rcvd){
     ROS_INFO("received lidar alarm value is: %i", la_rcvd.data);
     // post the received data in a global var for access by main prog
     lidar_alarm_msg.data = la_rcvd.data;
-    
 }
-
 
 // receive the infor from lidar dist
 // copy the relevant values to global variables, for use by "main"
@@ -179,6 +172,7 @@ double getRampingFactor(double remaining, double vel, double acc){
 	else if (lidar_initialized && // make sure we've gotten data from the lidar so that lidar_nearest will be initialized
 			 lidar_nearest.data <= 1.0) { // we might get the lidar alarm soon, so start slowing
 		double dist_to_stop = lidar_nearest.data - 0.5;
+		if (dist_to_stop < 0.0) dist_to_stop = 0.0;
 		ramping_factor = sqrt(2 * dist_to_stop * acc) / vel;
 		// ramping_factor = 0.0;
 		ROS_INFO("lidar caution zone: ramping_factor = %f", ramping_factor);
@@ -187,6 +181,34 @@ double getRampingFactor(double remaining, double vel, double acc){
 		ramping_factor = 1.0;
 	}
 	return ramping_factor;
+}
+
+double getVelocity(double ramping_factor, double vel, double acc){
+	double ramped_vel = ramping_factor * vel,
+		new_vel = vel;
+	if (lidar_alarm_msg.data == true || estop_on.data == true) { // The robot should stop when either condition is true
+		new_vel = 0.0;
+		ROS_INFO("Halted the robot. Halt status = %i; Lidar alarm = %i; Estop = %i", halt_status.data, lidar_alarm_msg.data, estop_on.data);
+	} // next, how does the current velocity compare to the scheduled vel?
+	else if (odom_vel_ < ramped_vel) {  // maybe we halted, e.g. due to estop or obstacle;
+		// may need to ramp up to v_max; do so within accel limits
+		double v_test = odom_vel_ + acc*dt_callback_; // if callbacks are slow, this could be abrupt
+		ROS_INFO("v_test: %f, acc: %f, dt_callback_: %f", v_test, acc, dt_callback_);
+		// operator:  c = (a>b) ? a : b;
+		new_vel = (v_test < ramped_vel) ? v_test : ramped_vel; //choose lesser of two options
+		// this prevents overshooting ramped_vel
+	} else if (odom_vel_ > ramped_vel) { //travelling too fast--this could be trouble
+		// ramp down to the scheduled velocity.  However, scheduled velocity might already be ramping down at acc.
+		// need to catch up, so ramp down even faster than acc.  Try 1.2*acc.
+		ROS_INFO("odom vel: %f; sched vel: %f", odom_vel_, ramped_vel); //debug/analysis output; can comment this out
+		
+		double v_test = odom_vel_ - 1.2 * acc*dt_callback_; //moving too fast--try decelerating faster than nominal acc
+		
+		new_vel = (v_test > ramped_vel) ? v_test : ramped_vel; // choose larger of two options...don't overshoot ramped_vel
+	} else {
+		new_vel = ramped_vel; //silly third case: this is already true, if here.  Issue the scheduled velocity
+	}
+	return new_vel;
 }
 
 void translationFunc (ros::Publisher& vel_cmd_publisher, double segment_length){
@@ -249,7 +271,7 @@ void translationFunc (ros::Publisher& vel_cmd_publisher, double segment_length){
         ROS_INFO("Lidar nearest: %f", lidar_nearest.data);
         
         //use segment_length_done to decide what vel should be, as per plan
-        if (dist_to_go <= 0.0) { // at goal, or overshot; stop!
+        /* if (dist_to_go <= 0.0) { // at goal, or overshot; stop!
             scheduled_vel = 0.0;
         }
         else if (halt_status.data == true) { // if user brake, then stop!
@@ -294,13 +316,22 @@ void translationFunc (ros::Publisher& vel_cmd_publisher, double segment_length){
             new_cmd_vel = 0.0;
             ROS_INFO("Halted the robot. Halt status = %i; Lidar alarm = %i; Estop = %i", halt_status.data, lidar_alarm_msg.data, estop_on.data);
         }
+		*/
+		
+		double ramping_factor = getRampingFactor(dist_to_go, v_max, a_max);
+		new_cmd_vel = getVelocity(ramping_factor, v_max, a_max);
+		
+		// prevent robot from going backwards
+		if (new_cmd_vel < 0.0) {
+			new_cmd_vel = 0.0;
+		}
     
         cmd_vel.linear.x = new_cmd_vel;
         cmd_vel.angular.z = new_cmd_omega; // spin command; always zero, in this example
         if (dist_to_go <= 0.0) { // if any of these conditions is true, the robot should stop
-            cmd_vel.linear.x = 0.0;  //command vel=0
+            cmd_vel.linear.x = 0.0;
         }
-        vel_cmd_publisher.publish(cmd_vel); // publish the command to jinx/cmd_vel
+        vel_cmd_publisher.publish(cmd_vel); // publish the command
         rtimer->sleep(); // sleep for remainder of timed iteration
         if (dist_to_go <= 0.0) break; // halt this node when this segment is complete.
         // will want to generalize this to handle multiple segments
@@ -360,13 +391,17 @@ void rotationFunc (ros::Publisher& vel_cmd_publisher, double segment_radian){
         ros::spinOnce(); // allow callbacks to populate fresh data
         // compute distance travelled so far:
 
-	// compute the angle between the start and current orientation
+		// compute the angle between the start and current orientation
+		// formula from http://math.stackexchange.com/questions/90081/quaternion-distance
         double segment_radian_done = acos(2.0*pow(odom_quat_z_ * start_quat_z + odom_quat_w_ * start_quat_w, 2)-1.0);
-        //ROS_INFO("dist travelled: %f",segment_radian_done);
+        // ROS_INFO("dist travelled: %f",segment_radian_done);
         double radian_to_go = fabs(segment_radian) - fabs(segment_radian_done);
+		if (radian_to_go <= radian_to_go_error) {
+			radian_to_go = 0.0;
+		}
         //ROS_INFO("Lidar nearest: %f", lidar_nearest.data);
         //use segment_length_done to decide what vel should be, as per plan
-        if (radian_to_go <= 0.05) { // at goal, or overshot; stop!
+        /*if (radian_to_go <= 0.05) { // at goal, or overshot; stop!
             scheduled_vel = 0.0;
         }
         else if (halt_status.data == true) { // if user brake, then stop!
@@ -384,13 +419,13 @@ void rotationFunc (ros::Publisher& vel_cmd_publisher, double segment_radian){
         }
         else { // not ready to decel, so target vel is v_max, either accel to it or hold it
             scheduled_vel = omega_max;
-        }
-        
-		odom_omega_ = fabs(odom_omega_);
-
+        }*/
+        double ramping_factor = getRampingFactor(radian_to_go, omega_max, alpha_max);
         ROS_INFO("radian_to_go: %f, dist_decel: %f, odom_omega_: %f, scheduled_vel: %f", radian_to_go, dist_decel, odom_omega_, scheduled_vel);
+
+		odom_omega_ = fabs(odom_omega_);
         //how does the current velocity compare to the scheduled vel?
-        if (odom_omega_ < scheduled_vel) {  // maybe we halted, e.g. due to estop or obstacle;
+        /*if (odom_omega_ < scheduled_vel) {  // maybe we halted, e.g. due to estop or obstacle;
             // may need to ramp up to v_max; do so within accel limits
             double v_test = odom_omega_ + alpha_max*dt_callback_;  // if callbacks are slow, this could be abrupt
             // operator:  c = (a>b) ? a : b;
@@ -413,19 +448,21 @@ void rotationFunc (ros::Publisher& vel_cmd_publisher, double segment_radian){
             new_cmd_omega = 0.0;
 			ROS_INFO("Halted the robot. Halt status = %i; Lidar alarm = %i; Estop = %i", halt_status.data, lidar_alarm_msg.data, estop_on.data);
         }
+		*/
+		new_cmd_omega = getVelocity(ramping_factor, omega_max, alpha_max);
 
 		if (segment_radian < 0.0) {
 			new_cmd_omega = -new_cmd_omega;
         }
     
-        cmd_vel.linear.x = new_cmd_vel;
-        cmd_vel.angular.z = new_cmd_omega; // spin command; always zero, in this example
-        if (radian_to_go <= 0.05) { // if any of these conditions is true, the robot should stop
-            cmd_vel.angular.z = 0.0;  //command vel=0
+        cmd_vel.linear.x = new_cmd_vel; // linear command; always zero when rotating
+        cmd_vel.angular.z = new_cmd_omega;
+        if (radian_to_go <= radian_to_go_error) { // if any of these conditions is true, the robot should stop
+            cmd_vel.angular.z = 0.0;
         }
         vel_cmd_publisher.publish(cmd_vel); // publish the command to jinx/cmd_vel
         rtimer->sleep(); // sleep for remainder of timed iteration
-        if (radian_to_go <= 0.05) break; // halt this node when this segment is complete.
+        if (radian_to_go <= radian_to_go_error) break; // halt this node when this segment is complete.
         // will want to generalize this to handle multiple segments
         // ideally, will want to receive segments dynamically as publications from a higher-level planner
     }
