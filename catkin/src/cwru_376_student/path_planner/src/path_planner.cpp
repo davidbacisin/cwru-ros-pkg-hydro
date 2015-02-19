@@ -17,15 +17,15 @@ public:
 // Define the list of path segments, in order.
 // The array index becomes the ID of the segment.
 PathSegment path_segments_[] = {
-	PathSegment(0.0, 4.0),
+	/*PathSegment(0.0, 4.0),
 	PathSegment(-M_PI/2.0, 0.0),
 	PathSegment(M_PI, 0.0),
-	PathSegment(M_PI/2.0, 0.0)
-	/*PathSegment(0.0, 4.4),
+	PathSegment(M_PI/2.0, 0.0)*/
+	PathSegment(0.0, 4.4),
 	PathSegment(-M_PI/2.0, 0.0),
 	PathSegment(0.0, 12.2),
-	PathSegment(-M_PI/2.0, 0.0),
-	PathSegment(0.0, 5.0)*/
+	PathSegment(-M_PI*0.53, 0.0),
+	PathSegment(0.0, 6.0)
 };
 
 // PathPlanner singleton 
@@ -49,7 +49,7 @@ PathPlanner::PathPlanner(ros::NodeHandle& nh) {
 	// specify the path segments
 	segments = path_segments_;
 	// the number of segments
-	segment_count = 3;
+	segment_count = 5;
 	// create and broadcast the service
 	service = nh.advertiseService("path_planner_service", serviceCallback);
 	ROS_INFO("Ready to fulfill path segment requests");

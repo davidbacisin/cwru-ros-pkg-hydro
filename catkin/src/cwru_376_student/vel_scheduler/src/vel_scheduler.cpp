@@ -45,6 +45,7 @@ therefore, theta = 2*atan2(qz,qw)
 
 // set some dynamic limits...
 double v_max = 0.9; //1m/sec is a slow walk
+double v_actual_max;
 double v_min = 0.1; // if command velocity too low, robot won't move
 double a_max = 0.3; //1m/sec^2 is 0.1 g's
 //const double a_max_decel = 0.1; // TEST
@@ -72,16 +73,27 @@ bool lidar_initialized = false;
 std_msgs::Bool estop_on;
 std_msgs::Bool halt_status;
 
+
+double dist_safe,
+	dist_danger,
+	dist_critical,
+	v_safe = 0.1;
+
 ros::Rate *rtimer; // frequency corresponding to chosen sample period DT; the main loop will run this fast
 
 void getParams(ros::NodeHandle& nh){
 	// get the velocity/acceleration max values as specified by ROS params
 	// third param is the default value
 	nh.param("/vel_scheduler/max_linear_velocity", v_max, 1.0);
+	v_actual_max = v_max;
 	nh.param("/vel_scheduler/max_linear_acceleration", a_max, 1.0);
 	nh.param("/vel_scheduler/max_angular_velocity", omega_max, 1.0);
 	nh.param("/vel_scheduler/max_angular_acceleration", alpha_max, 0.5);
     nh.param("/lidar_alarm/lidar_safe_distance", lidar_safe_distance, 0.5);
+	// set safe distances
+	dist_safe = lidar_safe_distance + 2.0;
+	dist_danger = 0.75;
+	dist_critical = 0.5;
 }
 
 // receive odom messages and strip off the components we want to use
@@ -161,7 +173,8 @@ void eStopStatusCallback(const std_msgs::Bool& ess_rcvd){
 double getRampingFactor(double remaining, double vel, double acc){
 	double ramping_factor = 0.0,
 		time_to_decel = vel/acc,
-		dist_decel = 0.5 * acc * (time_to_decel * time_to_decel);
+		dist_decel = 0.5 * acc * (time_to_decel * time_to_decel),
+		dist_to_stop = 1000;
 	if (remaining <= 0.0) { // at goal, or overshot; stop!
 		ramping_factor = 0.0;
 	}
@@ -175,14 +188,21 @@ double getRampingFactor(double remaining, double vel, double acc){
 		ramping_factor = sqrt(2 * remaining * acc) / vel;
 		ROS_INFO("braking zone: ramping_factor = %f", ramping_factor);
 	}
-	else if (lidar_initialized && // make sure we've gotten data from the lidar so that lidar_nearest will be initialized
-			 lidar_nearest.data <= lidar_safe_distance + dist_decel) { // we might get the lidar alarm soon, so start slowing
-		double dist_to_stop = lidar_nearest.data - lidar_safe_distance;
-		if (dist_to_stop < 0.0) dist_to_stop = 0.0;
-		ramping_factor = sqrt(2 * dist_to_stop * acc) / vel;
-		//ramping_factor = 0.0;
-		ROS_INFO("lidar caution zone: ramping_factor = %f", ramping_factor);
-	}
+	/*else if (lidar_initialized && // make sure we've gotten data from the lidar so that lidar_nearest will be initialized
+			 lidar_nearest.data <= dist_safe) { // we might get the lidar alarm soon, so start slowing
+		if (lidar_nearest.data <= dist_critical){
+			ramping_factor = 0.0;
+		}
+		else if (lidar_nearest.data <= dist_danger){
+			ramping_factor = ramping_factor_safe;
+		}
+		else {
+			dist_to_stop = dist_safe - lidar_nearest.data;
+			if (dist_to_stop < 0.0) dist_to_stop = 0.0;
+			ramping_factor = dist_to_stop / (1 - ramping_factor_safe * vel);
+		}
+		ROS_INFO("lidar caution zone: ramping_factor = %f, dist_to_stop: %f, dist_danger: %f, dist_safe: %f", ramping_factor, dist_to_stop, dist_danger, dist_safe);
+	}*/
 	else { // not ready to decel, so target vel is v_max, either accel to it or hold it
 		ramping_factor = 1.0;
 	}
@@ -331,6 +351,27 @@ void translationFunc (ros::Publisher& vel_cmd_publisher, ros::Publisher& vel_cmd
 		*/
 		
 		double ramping_factor = getRampingFactor(dist_to_go, v_max, a_max);
+
+		if (lidar_initialized && // make sure we've gotten data from the lidar so that lidar_nearest will be initialized
+			lidar_nearest.data <= dist_safe) { // we might get the lidar alarm soon, so start slowing
+			
+			double dist_to_stop = lidar_nearest.data;
+
+			if (dist_to_stop <= dist_critical){
+				v_max = 0.0;
+			}
+			else if (dist_to_stop <= dist_danger){
+				v_max = v_safe;
+			}
+			else {
+				v_max = v_actual_max * (dist_to_stop / dist_safe);
+			}
+			ROS_INFO("lidar caution zone: ramping_factor = %f, dist_to_stop: %f, dist_critical: %f, dist_danger: %f, dist_safe: %f", ramping_factor, dist_to_stop, dist_critical, dist_danger, dist_safe);
+		}
+		else {
+			v_max = v_actual_max;
+		}
+
 		new_cmd_vel = getVelocity(odom_vel_, ramping_factor, v_max, a_max);
 		
 		// prevent robot from going backwards

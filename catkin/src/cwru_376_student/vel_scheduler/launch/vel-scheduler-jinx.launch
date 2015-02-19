@@ -6,6 +6,7 @@
 		<param name="max_angular_velocity" type="double" value="0.5" />
 		<param name="max_angular_acceleration" type="double" value="0.1" />
 		<param name="cmd_vel_topic" type="str" value="/cmd_vel" />
+		<param name="cmd_vel_stamped_topic" type="str" value="/cmd_vel_stamped" />
 		<param name="odom_topic" type="str" value="/odom" />
 	</node>
 </launch>
