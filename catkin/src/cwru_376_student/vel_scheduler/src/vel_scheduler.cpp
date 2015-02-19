@@ -53,6 +53,7 @@ double DT = 1.0/50.0; // choose an update rate of 50Hz
 double radian_to_go_error = 0.05;
 
 // globals for communication w/ callbacks:
+bool odom_initialized = false;
 double odom_vel_ = 0.0; // measured/published system speed
 double odom_omega_ = 0.0; // measured/published system yaw rate (spin)
 double odom_x_=  0.0;
@@ -110,6 +111,8 @@ void odomCallback(const nav_msgs::Odometry& odom_rcvd) {
     odom_phi_ = 2.0*atan2(quat_z, quat_w); // cheap conversion from quaternion to heading for planar motion
     odom_quat_z_ = quat_z;
     odom_quat_w_ = quat_w;
+
+	odom_initialized = true;
 
     // the output below could get annoying; may comment this out, but useful initially for debugging
     ROS_INFO("odom CB: x = %f, y= %f, phi = %f, v = %f, omega = %f", odom_x_, odom_y_, odom_phi_, odom_vel_, odom_omega_);
@@ -183,26 +186,26 @@ double getRampingFactor(double remaining, double vel, double acc){
 	return ramping_factor;
 }
 
-double getVelocity(double ramping_factor, double vel, double acc){
+double getVelocity(double current_vel, double ramping_factor, double vel, double acc){
 	double ramped_vel = ramping_factor * vel,
 		new_vel = vel;
 	if (lidar_alarm_msg.data == true || estop_on.data == true) { // The robot should stop when either condition is true
 		new_vel = 0.0;
 		ROS_INFO("Halted the robot. Halt status = %i; Lidar alarm = %i; Estop = %i", halt_status.data, lidar_alarm_msg.data, estop_on.data);
 	} // next, how does the current velocity compare to the scheduled vel?
-	else if (odom_vel_ < ramped_vel) {  // maybe we halted, e.g. due to estop or obstacle;
+	else if (current_vel < ramped_vel) {  // maybe we halted, e.g. due to estop or obstacle;
 		// may need to ramp up to v_max; do so within accel limits
-		double v_test = odom_vel_ + acc*dt_callback_; // if callbacks are slow, this could be abrupt
+		double v_test = current_vel + acc*dt_callback_; // if callbacks are slow, this could be abrupt
 		ROS_INFO("v_test: %f, acc: %f, dt_callback_: %f", v_test, acc, dt_callback_);
 		// operator:  c = (a>b) ? a : b;
 		new_vel = (v_test < ramped_vel) ? v_test : ramped_vel; //choose lesser of two options
 		// this prevents overshooting ramped_vel
-	} else if (odom_vel_ > ramped_vel) { //travelling too fast--this could be trouble
+	} else if (current_vel > ramped_vel) { //travelling too fast--this could be trouble
 		// ramp down to the scheduled velocity.  However, scheduled velocity might already be ramping down at acc.
 		// need to catch up, so ramp down even faster than acc.  Try 1.2*acc.
 		ROS_INFO("odom vel: %f; sched vel: %f", odom_vel_, ramped_vel); //debug/analysis output; can comment this out
 		
-		double v_test = odom_vel_ - 1.2 * acc*dt_callback_; //moving too fast--try decelerating faster than nominal acc
+		double v_test = current_vel - 1.2 * acc*dt_callback_; //moving too fast--try decelerating faster than nominal acc
 		
 		new_vel = (v_test > ramped_vel) ? v_test : ramped_vel; // choose larger of two options...don't overshoot ramped_vel
 	} else {
@@ -236,7 +239,7 @@ void translationFunc (ros::Publisher& vel_cmd_publisher, double segment_length){
     cmd_vel.angular.z = 0.0;
 
     // let's wait for odom callback to start getting good values...
-    odom_omega_ = 1000000; // absurdly high
+/*    odom_omega_ = 1000000; // absurdly high
     ROS_INFO("waiting for valid odom callback...");
     t_last_callback_ = ros::Time::now(); // initialize reference for computed update rate of callback
     while (odom_omega_ > 1000) {
@@ -244,6 +247,7 @@ void translationFunc (ros::Publisher& vel_cmd_publisher, double segment_length){
         ros::spinOnce();
     }
     ROS_INFO("received odom message; proceeding");
+*/
     start_x = odom_x_;
     start_y = odom_y_;
     start_phi = odom_phi_;
@@ -319,7 +323,7 @@ void translationFunc (ros::Publisher& vel_cmd_publisher, double segment_length){
 		*/
 		
 		double ramping_factor = getRampingFactor(dist_to_go, v_max, a_max);
-		new_cmd_vel = getVelocity(ramping_factor, v_max, a_max);
+		new_cmd_vel = getVelocity(odom_vel_, ramping_factor, v_max, a_max);
 		
 		// prevent robot from going backwards
 		if (new_cmd_vel < 0.0) {
@@ -361,7 +365,7 @@ void rotationFunc (ros::Publisher& vel_cmd_publisher, double segment_radian){
     cmd_vel.angular.z = 0.0;
 
     // let's wait for odom callback to start getting good values...
-    odom_omega_ = 1000000; // absurdly high
+/*    odom_omega_ = 1000000; // absurdly high
     ROS_INFO("waiting for valid odom callback...");
     t_last_callback_ = ros::Time::now(); // initialize reference for computed update rate of callback
     while (odom_omega_ > 1000) {
@@ -369,6 +373,7 @@ void rotationFunc (ros::Publisher& vel_cmd_publisher, double segment_radian){
         ros::spinOnce();
     }
     ROS_INFO("received odom message; proceeding");
+*/
     start_x = odom_x_;
     start_y = odom_y_;
     start_phi = odom_phi_;
@@ -449,7 +454,7 @@ void rotationFunc (ros::Publisher& vel_cmd_publisher, double segment_radian){
 			ROS_INFO("Halted the robot. Halt status = %i; Lidar alarm = %i; Estop = %i", halt_status.data, lidar_alarm_msg.data, estop_on.data);
         }
 		*/
-		new_cmd_omega = getVelocity(ramping_factor, omega_max, alpha_max);
+		new_cmd_omega = getVelocity(odom_omega_, ramping_factor, omega_max, alpha_max);
 
 		if (segment_radian < 0.0) {
 			new_cmd_omega = -new_cmd_omega;
@@ -521,6 +526,12 @@ int main(int argc, char **argv) {
     
 	// load v_max, a_max, etc from the param server
 	getParams(nh);
+	
+	// wait until odom is ready
+	while (!odom_initialized){
+		ros::spinOnce();
+		rtimer->sleep();
+	}
 
     // Wait until path_planner is ready to send data to us
     path_planner::path_segment srv;
@@ -544,4 +555,6 @@ int main(int argc, char **argv) {
 
 	// clean up the dynamic memory
     delete rtimer;
+
+    return 0;
 }            

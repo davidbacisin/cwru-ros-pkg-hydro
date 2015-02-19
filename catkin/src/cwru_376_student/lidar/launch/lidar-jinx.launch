@@ -1,5 +1,5 @@
 <launch>
-	<!-- Launches the lidar nodes for testing in STDR -->
+	<!-- Launches the lidar nodes for Jinx -->
 	<node name="lidar_interpreter" pkg="lidar" type="lidar_interpreter" respawn="true">
 		<param name="lidar_topic" type="str" value="/base_laser1_scan" />
 	</node>	
