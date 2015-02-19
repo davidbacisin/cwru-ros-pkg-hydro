@@ -1,0 +1,11 @@
+<launch>
+	<!-- Launches the velocity scheduler node -->
+	<node name="vel_scheduler" pkg="vel_scheduler" type="vel_scheduler" respawn="false">
+		<param name="max_linear_velocity" type="double" value="1.0" />
+		<param name="max_linear_acceleration" type="double" value="0.25" />
+		<param name="max_angular_velocity" type="double" value="0.5" />
+		<param name="max_angular_acceleration" type="double" value="0.1" />
+		<param name="cmd_vel_topic" type="str" value="/cmd_vel" />
+		<param name="odom_topic" type="str" value="/odom" />
+	</node>
+</launch>
