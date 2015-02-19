@@ -50,7 +50,7 @@ double a_max = 0.3; //1m/sec^2 is 0.1 g's
 double omega_max = 0.5; //1 rad/sec-> about 6 seconds to rotate 1 full rev
 double alpha_max = 0.7; //0.5 rad/sec^2-> takes 2 sec to get from rest to full omega
 double DT = 1.0/50.0; // choose an update rate of 50Hz
-double radian_to_go_error = 0.05;
+double radian_to_go_error = 0.1;
 
 // globals for communication w/ callbacks:
 bool odom_initialized = false;
@@ -173,11 +173,11 @@ double getRampingFactor(double remaining, double vel, double acc){
 		ROS_INFO("braking zone: ramping_factor = %f", ramping_factor);
 	}
 	else if (lidar_initialized && // make sure we've gotten data from the lidar so that lidar_nearest will be initialized
-			 lidar_nearest.data <= 1.0) { // we might get the lidar alarm soon, so start slowing
-		double dist_to_stop = lidar_nearest.data - 0.5;
+			 lidar_nearest.data <= 1.5) { // we might get the lidar alarm soon, so start slowing
+		double dist_to_stop = lidar_nearest.data - 1.0;
 		if (dist_to_stop < 0.0) dist_to_stop = 0.0;
 		ramping_factor = sqrt(2 * dist_to_stop * acc) / vel;
-		// ramping_factor = 0.0;
+		//ramping_factor = 0.0;
 		ROS_INFO("lidar caution zone: ramping_factor = %f", ramping_factor);
 	}
 	else { // not ready to decel, so target vel is v_max, either accel to it or hold it
@@ -195,7 +195,7 @@ double getVelocity(double current_vel, double ramping_factor, double vel, double
 	} // next, how does the current velocity compare to the scheduled vel?
 	else if (current_vel < ramped_vel) {  // maybe we halted, e.g. due to estop or obstacle;
 		// may need to ramp up to v_max; do so within accel limits
-		double v_test = current_vel + acc*dt_callback_; // if callbacks are slow, this could be abrupt
+		double v_test = current_vel + acc*(1.0 - current_vel/ramped_vel); // if callbacks are slow, this could be abrupt
 		ROS_INFO("v_test: %f, acc: %f, dt_callback_: %f", v_test, acc, dt_callback_);
 		// operator:  c = (a>b) ? a : b;
 		new_vel = (v_test < ramped_vel) ? v_test : ramped_vel; //choose lesser of two options
@@ -205,12 +205,15 @@ double getVelocity(double current_vel, double ramping_factor, double vel, double
 		// need to catch up, so ramp down even faster than acc.  Try 1.2*acc.
 		ROS_INFO("odom vel: %f; sched vel: %f", odom_vel_, ramped_vel); //debug/analysis output; can comment this out
 		
-		double v_test = current_vel - 1.2 * acc*dt_callback_; //moving too fast--try decelerating faster than nominal acc
+		double v_test = current_vel - 1.2 * acc/**dt_callback_*/; //moving too fast--try decelerating faster than nominal acc
 		
 		new_vel = (v_test > ramped_vel) ? v_test : ramped_vel; // choose larger of two options...don't overshoot ramped_vel
 	} else {
 		new_vel = ramped_vel; //silly third case: this is already true, if here.  Issue the scheduled velocity
 	}
+	/*if (new_vel <= 0.1 && new_vel >= 0.0){
+		new_vel = 0.1;
+	}*/
 	return new_vel;
 }
 
@@ -527,6 +530,7 @@ int main(int argc, char **argv) {
 	// load v_max, a_max, etc from the param server
 	getParams(nh);
 	
+ROS_INFO("Waiting for odom data");
 	// wait until odom is ready
 	while (!odom_initialized){
 		ros::spinOnce();
@@ -550,6 +554,10 @@ int main(int argc, char **argv) {
         } else {
             translationFunc(vel_cmd_publisher, segment_length);//call translationFunc    
         }
+		// wait between path segments
+		for (int wait = 0; wait < 0.5/DT; wait++){
+			rtimer->sleep();
+		}
     } 
     ROS_INFO("completed move distance");
 
