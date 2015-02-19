@@ -66,6 +66,7 @@ double dt_odom_ = 0.0;
 ros::Time t_last_callback_;
 double dt_callback_= 0.0;
 std_msgs::Bool lidar_alarm_msg;
+double lidar_safe_distance;
 std_msgs::Float32 lidar_nearest;
 bool lidar_initialized = false;
 std_msgs::Bool estop_on;
@@ -80,6 +81,7 @@ void getParams(ros::NodeHandle& nh){
 	nh.param("/vel_scheduler/max_linear_acceleration", a_max, 1.0);
 	nh.param("/vel_scheduler/max_angular_velocity", omega_max, 1.0);
 	nh.param("/vel_scheduler/max_angular_acceleration", alpha_max, 0.5);
+    nh.param("/lidar_alarm/lidar_safe_distance", lidar_safe_distance, 0.5);
 }
 
 // receive odom messages and strip off the components we want to use
@@ -174,8 +176,8 @@ double getRampingFactor(double remaining, double vel, double acc){
 		ROS_INFO("braking zone: ramping_factor = %f", ramping_factor);
 	}
 	else if (lidar_initialized && // make sure we've gotten data from the lidar so that lidar_nearest will be initialized
-			 lidar_nearest.data <= 1.5) { // we might get the lidar alarm soon, so start slowing
-		double dist_to_stop = lidar_nearest.data - 1.0;
+			 lidar_nearest.data <= lidar_safe_distance + dist_decel) { // we might get the lidar alarm soon, so start slowing
+		double dist_to_stop = lidar_nearest.data - lidar_safe_distance;
 		if (dist_to_stop < 0.0) dist_to_stop = 0.0;
 		ramping_factor = sqrt(2 * dist_to_stop * acc) / vel;
 		//ramping_factor = 0.0;
@@ -190,18 +192,17 @@ double getRampingFactor(double remaining, double vel, double acc){
 double getVelocity(double current_vel, double ramping_factor, double vel, double acc){
 	double ramped_vel = ramping_factor * vel,
 		new_vel = vel;
-	if (lidar_alarm_msg.data == true || estop_on.data == true) { // The robot should stop when either condition is true
-		new_vel = 0.0;
-		ROS_INFO("Halted the robot. Halt status = %i; Lidar alarm = %i; Estop = %i", halt_status.data, lidar_alarm_msg.data, estop_on.data);
-	} // next, how does the current velocity compare to the scheduled vel?
-	else if (current_vel < ramped_vel) {  // maybe we halted, e.g. due to estop or obstacle;
+    ROS_INFO("ramped_vel: %f, current_vel: %f", ramped_vel, current_vel);
+	// how does the current velocity compare to the scheduled vel?
+	if (current_vel < ramped_vel) {  // maybe we halted, e.g. due to estop or obstacle;
 		// may need to ramp up to v_max; do so within accel limits
 		double v_test = current_vel + acc*(1.0 - current_vel/ramped_vel); // if callbacks are slow, this could be abrupt
 		ROS_INFO("v_test: %f, acc: %f, dt_callback_: %f", v_test, acc, dt_callback_);
 		// operator:  c = (a>b) ? a : b;
 		new_vel = (v_test < ramped_vel) ? v_test : ramped_vel; //choose lesser of two options
 		// this prevents overshooting ramped_vel
-	} else if (current_vel > ramped_vel) { //travelling too fast--this could be trouble
+	}
+    else if (current_vel > ramped_vel) { //travelling too fast--this could be trouble
 		// ramp down to the scheduled velocity.  However, scheduled velocity might already be ramping down at acc.
 		// need to catch up, so ramp down even faster than acc.  Try 1.2*acc.
 		ROS_INFO("odom vel: %f; sched vel: %f", odom_vel_, ramped_vel); //debug/analysis output; can comment this out
@@ -212,9 +213,11 @@ double getVelocity(double current_vel, double ramping_factor, double vel, double
 	} else {
 		new_vel = ramped_vel; //silly third case: this is already true, if here.  Issue the scheduled velocity
 	}
-	/*if (new_vel <= 0.1 && new_vel >= 0.0){
-		new_vel = 0.1;
-	}*/
+    // ensure there is no emergency stop!
+    if (lidar_alarm_msg.data == true || estop_on.data == true) { // The robot should stop when either condition is true
+        new_vel = 0.0;
+        ROS_INFO("Halted the robot. Halt status = %i; Lidar alarm = %i; Estop = %i", halt_status.data, lidar_alarm_msg.data, estop_on.data);
+    } 
 	return new_vel;
 }
 
@@ -336,7 +339,7 @@ void translationFunc (ros::Publisher& vel_cmd_publisher, ros::Publisher& vel_cmd
 		}
     
         cmd_vel.linear.x = new_cmd_vel;
-        cmd_vel.angular.z = new_cmd_omega; // spin command; always zero, in this example
+        cmd_vel.angular.z = 0.0; // spin command; always zero, in this example
         if (dist_to_go <= 0.0) { // if any of these conditions is true, the robot should stop
             cmd_vel.linear.x = 0.0;
         }
@@ -469,7 +472,7 @@ void rotationFunc (ros::Publisher& vel_cmd_publisher, ros::Publisher& vel_cmd_st
 			new_cmd_omega = -new_cmd_omega;
         }
     
-        cmd_vel.linear.x = new_cmd_vel; // linear command; always zero when rotating
+        cmd_vel.linear.x = 0.0; // linear command; always zero when rotating
         cmd_vel.angular.z = new_cmd_omega;
         if (radian_to_go <= radian_to_go_error) { // if any of these conditions is true, the robot should stop
             cmd_vel.angular.z = 0.0;
