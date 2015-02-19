@@ -35,6 +35,7 @@ therefore, theta = 2*atan2(qz,qw)
 //
 #include <ros/ros.h>
 #include <geometry_msgs/Twist.h>
+#include <geometry_msgs/TwistStamped.h>
 #include <nav_msgs/Odometry.h>
 #include <std_msgs/Float32.h> //Including the Float32 class from std_msgs
 #include <std_msgs/Bool.h> // boolean message time
@@ -217,7 +218,7 @@ double getVelocity(double current_vel, double ramping_factor, double vel, double
 	return new_vel;
 }
 
-void translationFunc (ros::Publisher& vel_cmd_publisher, double segment_length){
+void translationFunc (ros::Publisher& vel_cmd_publisher, ros::Publisher& vel_cmd_stamped_pub, double segment_length){
     // here is a crude description of one segment of a journey.  Will want to generalize this to handle multiple segments
     // define the desired path length of this segment, segment_1, linear advancing
     //double segment_length = 100; // desired travel distance in meters; anticipate travelling multiple segments
@@ -233,6 +234,7 @@ void translationFunc (ros::Publisher& vel_cmd_publisher, double segment_length){
     double new_cmd_omega = 0.0; // update spin rate command as well
 
     geometry_msgs::Twist cmd_vel; //create a variable of type "Twist" to publish speed/spin commands
+    geometry_msgs::TwistStamped cmd_vel_stamped;
 
     cmd_vel.linear.x = 0.0; // initialize these values to zero
     cmd_vel.linear.y = 0.0;
@@ -339,13 +341,16 @@ void translationFunc (ros::Publisher& vel_cmd_publisher, double segment_length){
             cmd_vel.linear.x = 0.0;
         }
         vel_cmd_publisher.publish(cmd_vel); // publish the command
+        cmd_vel_stamped.twist = cmd_vel;
+        cmd_vel_stamped.header.stamp = ros::Time::now();
+        vel_cmd_stamped_pub.publish(cmd_vel_stamped);
         rtimer->sleep(); // sleep for remainder of timed iteration
         if (dist_to_go <= 0.0) break; // halt this node when this segment is complete.
         // will want to generalize this to handle multiple segments
         // ideally, will want to receive segments dynamically as publications from a higher-level planner
     }    
 }
-void rotationFunc (ros::Publisher& vel_cmd_publisher, double segment_radian){
+void rotationFunc (ros::Publisher& vel_cmd_publisher, ros::Publisher& vel_cmd_stamped_pub, double segment_radian){
     double segment_radian_done = 0.0; // need to compute actual distance travelled within the current segment
     double start_x = 0.0; // fill these in with actual values once odom message is received
     double start_y = 0.0; // subsequent segment start coordinates should be specified relative to end of previous segment
@@ -359,6 +364,7 @@ void rotationFunc (ros::Publisher& vel_cmd_publisher, double segment_radian){
     double new_cmd_omega = 0.0; // update spin rate command as well
 
     geometry_msgs::Twist cmd_vel; //create a variable of type "Twist" to publish speed/spin commands
+    geometry_msgs::TwistStamped cmd_vel_stamped;
 
     cmd_vel.linear.x = 0.0; // initialize these values to zero
     cmd_vel.linear.y = 0.0;
@@ -469,6 +475,9 @@ void rotationFunc (ros::Publisher& vel_cmd_publisher, double segment_radian){
             cmd_vel.angular.z = 0.0;
         }
         vel_cmd_publisher.publish(cmd_vel); // publish the command to jinx/cmd_vel
+        cmd_vel_stamped.twist = cmd_vel;
+        cmd_vel_stamped.header.stamp = ros::Time::now();
+        vel_cmd_stamped_pub.publish(cmd_vel_stamped);
         rtimer->sleep(); // sleep for remainder of timed iteration
         if (radian_to_go <= radian_to_go_error) break; // halt this node when this segment is complete.
         // will want to generalize this to handle multiple segments
@@ -502,9 +511,14 @@ int main(int argc, char **argv) {
         ROS_INFO("Velocity scheduler needs a topic name to published");
     }*/
 	std::string cmd_vel_topic,
+		cmd_vel_stamped_topic,
 		odom_topic;
 	if (!nh.getParam("/vel_scheduler/cmd_vel_topic", cmd_vel_topic)){
 		ROS_WARN("vel_scheduler needs ROS param cmd_vel_topic");
+		return 0;
+	}
+	if (!nh.getParam("/vel_scheduler/cmd_vel_stamped_topic", cmd_vel_stamped_topic)){
+		ROS_WARN("vel_scheduler needs ROS param cmd_vel_stamped_topic");
 		return 0;
 	}
 	if (!nh.getParam("/vel_scheduler/odom_topic", odom_topic)){
@@ -512,6 +526,7 @@ int main(int argc, char **argv) {
 		return 0;
 	}
     ros::Publisher vel_cmd_publisher = nh.advertise<geometry_msgs::Twist>(cmd_vel_topic, 1);
+    ros::Publisher vel_cmd_stamped_pub = nh.advertise<geometry_msgs::TwistStamped>(cmd_vel_stamped_topic, 1);
     ros::Subscriber sub_odom = nh.subscribe(odom_topic, 1, odomCallback);
     ros::Subscriber sub_halt = nh.subscribe("user_brake", 1, haltCallback);
     ros::Subscriber sub_lidar_alarm = nh.subscribe("lidar_alarm", 1, lidarAlarmCallback);
@@ -550,9 +565,9 @@ ROS_INFO("Waiting for odom data");
 		double segment_length = 0.0;
 		next_segment (client, segment_ID, segment_radian, segment_length);
         if (fabs(segment_radian) > segment_length){
-            rotationFunc(vel_cmd_publisher, segment_radian);//call rotationFunc           
+            rotationFunc(vel_cmd_publisher, vel_cmd_stamped_pub, segment_radian);//call rotationFunc           
         } else {
-            translationFunc(vel_cmd_publisher, segment_length);//call translationFunc    
+            translationFunc(vel_cmd_publisher, vel_cmd_stamped_pub, segment_length);//call translationFunc    
         }
 		// wait between path segments
 		for (int wait = 0; wait < 0.5/DT; wait++){
