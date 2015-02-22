@@ -92,7 +92,7 @@ void odomCallback(const nav_msgs::Odometry& odom_rcvd) {
 	odom_initialized = true;
 
 	// debug output
-    ROS_INFO("odom CB: x = %f, y= %f, phi = %f, v = %f, omega = %f", odom_x_, odom_y_, odom_phi_, odom_vel_, odom_omega_);
+    ROS_INFO("odom CB: x = %f, y= %f, quat_z = %f, quat_w = %f, v = %f, omega = %f", odom_x_, odom_y_, odom_quat_z_, odom_quat_w_, odom_vel_, odom_omega_);
 }
 
 // callback to check for a user brake
@@ -289,7 +289,7 @@ void rotationFunc (ros::Publisher& vel_cmd_publisher, ros::Publisher& vel_cmd_st
     cmd_vel.angular.y = 0.0;
     cmd_vel.angular.z = 0.0;
 
-    double radian_to_go = segment_length, // track how much further we need to go
+    double radian_to_go = segment_radian, // track how much further we need to go
 		new_cmd_omega = 0.0; // value of spin to be commanded; update each iteration
 
     while (ros::ok() && radian_to_go > radian_to_go_error) { // terminate if ROS has faulted or if we've finished the segment
