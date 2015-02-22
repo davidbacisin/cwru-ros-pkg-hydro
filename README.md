@@ -5,7 +5,7 @@ This it the main repository for team beta of the CWRU Mobile Robotics course, EE
 All packages developed by team beta can be found in \catkin\src\cwru_376_student.
 The rest of the files found within this repository are being synced from the class files provided by the instructor and TA.
 
---CHANGELOG--
+# CHANGELOG
 
 The following changelog is meant to serve as a general change index,
 for details on a specific file please refer to the readme found at the package level.
@@ -14,4 +14,6 @@ for details on a specific file please refer to the readme found at the package l
 
 2/5/2015 - Added "lidar" to packages directory. /lidar/src/ contains "lidar_alarm.cpp" and "lidar_interpreter.cpp" which were used in the reactive velocity assignment.
 
-2/10/2015 - Add path_planner packages to directory. /path_planner/ contains an srv folder with a matching .srv file responsible for storing the path segments while the src folder contains the actually .cpp file for the node.
+2/10/2015 - Add "path_planner" packages to directory. /path_planner/ contains an srv folder with a matching .srv file responsible for storing the path segments while the src folder contains the actually .cpp file for the node.
+
+2/19/2015 - Added ROS params to lidar and vel_scheduler nodes. Fixed velocity ramping so that it works in the real world. This included refactoring vel_scheduler to have several functions for calculating the desired velocity, and introducing a slowdown pattern for when the lidar detects objects within several meters. 
