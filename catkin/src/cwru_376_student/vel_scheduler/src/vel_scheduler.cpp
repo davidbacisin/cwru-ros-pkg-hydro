@@ -289,7 +289,7 @@ void rotationFunc (ros::Publisher& vel_cmd_publisher, ros::Publisher& vel_cmd_st
     cmd_vel.angular.y = 0.0;
     cmd_vel.angular.z = 0.0;
 
-    double radian_to_go = segment_radian, // track how much further we need to go
+    double radian_to_go = fabs(segment_radian), // track how much further we need to go
 		new_cmd_omega = 0.0; // value of spin to be commanded; update each iteration
 
     while (ros::ok() && radian_to_go > radian_to_go_error) { // terminate if ROS has faulted or if we've finished the segment
@@ -351,7 +351,7 @@ void getSegment(ros::ServiceClient& client, int segment_ID, double& segment_radi
 		segment_radian = 0.0;
     }
 
-	ROS_INFO("Recieved segment #%i with heading %f and length %f", segment_ID, segment_radian, segment_length);
+	ROS_INFO("Received segment #%i with heading %f and length %f", segment_ID, segment_radian, segment_length);
 }
 
 // main function!
