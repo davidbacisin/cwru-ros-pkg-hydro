@@ -1,5 +1,3 @@
-# cwru-ros-pkg-hydro-beta
-
 This it the main repository for team beta of the CWRU Mobile Robotics course, EECS 376, Spring 2015.
 
 All packages developed by team beta can be found in \catkin\src\cwru_376_student.
