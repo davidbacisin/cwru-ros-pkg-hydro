@@ -47,7 +47,7 @@ public:
 	// load the path data
 	bool loadPath();
 	// calculate the next path segment for the sequence
-	void nextSegment();
+	PathSegment* nextSegment();
 };
 
 #endif

@@ -18,18 +18,18 @@ PathSegment path_segments_[] = {
 
 PathPlanner::PathPlanner(ros::NodeHandle& nh): nh_p(&nh) {
 	// specify the path segments
-	segments = path_segments_;
+	// segments = path_segments_;
 	// the number of segments
-	segment_count = 5;
+	// segment_count = 5;
 	// create and broadcast the service
-	service = nh.advertiseService("path_planner_service", &serviceCallback, this);
+	service = nh.advertiseService("path_planner_service", &PathPlanner::serviceCallback, this);
 	// subscribe to odom
 	std::string odom_topic;
 	if (!nh.getParam("/odom_topic", odom_topic)) {
 		ROS_WARN("path_planner needs ROS param /odom_topic");
 		return;
 	}
-	odom_subscriber = nh.subscribe(odom_topic, 1, &odomCallback, this);
+	odom_subscriber = nh.subscribe(odom_topic, 1, &PathPlanner::odomCallback, this);
 	
 	ROS_INFO("Ready to fulfill path segment requests");
 }
