@@ -8,6 +8,8 @@
 	<!-- Launch Halt command node -->
 
 	<!-- Launch Path Planner -->
-	<node name="path_planner" pkg="path_planner" type="path_planner" respawn="true"></node>
+	<node name="path_planner" pkg="path_planner" type="path_planner" respawn="true">
+		<rosparam command="load" file="$(find beta_launchers)/launch/common.yaml" />
+	</node>
 
 </launch>

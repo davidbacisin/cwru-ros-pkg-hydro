@@ -425,9 +425,7 @@ int main(int argc, char **argv) {
             translationFunc(vel_cmd_publisher, vel_cmd_stamped_pub, segment_length);//call translationFunc    
         }
 		// wait a half second between path segments
-		for (int wait = 0; wait < 0.5/DT; wait++){
-			rtimer->sleep();
-		}
+		ros::Duration(0.5).sleep();
     } 
     ROS_INFO("completed move distance");
 
