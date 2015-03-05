@@ -78,6 +78,7 @@ bool PathPlanner::loadPath() {
 	else { // failed to get the path coordinates
 		// invalidate path_index
 		path_index = -1;
+		ROS_WARN("Path data could not be loaded from the parameter server.");
 		return false;
 	}
 }
