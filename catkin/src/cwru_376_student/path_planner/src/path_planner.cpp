@@ -124,7 +124,7 @@ PathSegment* PathPlanner::nextSegment(){
 		   qw = current_pose.pose.orientation.w,
 		   px = 2*qw*qw - 1,
 		   py = 2*qz*qw;
-	double heading = (length==0.0? 0.0: acos((px*dx + py*dy)/length)); // don't divide by zero
+	double heading = (length==0.0? 0.0: acos(/*(px*dx + py*dy)*/ dx/length)); // don't divide by zero
 	
 	ROS_INFO("Pre-path segment h=%f, l=%f", heading, length);
 	if (heading < 0.1) { // if our angle is approximately zero, then we can go straight
@@ -134,7 +134,7 @@ PathSegment* PathPlanner::nextSegment(){
 	}
 	else {
 		// determine which direction to head
-		if (px*dy - py*dx < 0) {
+		if (/*px*dy - py*dx*/ dy < 0) {
 			heading = -heading;
 		}
 		// turn to that direction, but don't move linearly
