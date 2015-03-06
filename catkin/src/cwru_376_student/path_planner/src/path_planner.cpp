@@ -124,7 +124,7 @@ PathSegment* PathPlanner::nextSegment(){
 		   py = 2*qz*qw;
 		   //px = 1.0,
 		   //py = 0.0;
-	if (length < 0.05) { // don't bother. Just go to the next path index.
+	if (length < 0.1) { // don't bother. Just go to the next path index.
 		path_index++;
 		return new PathSegment(0, 0);
 	}
@@ -132,7 +132,7 @@ PathSegment* PathPlanner::nextSegment(){
 	double heading = (length==0.0? 0.0: acos((px*dx + py*dy)/length)); // don't divide by zero
 	
 	ROS_INFO("Pre-segment h=%f, l=%f", heading, length);
-	if (heading < 0.12) { // if our angle is approximately zero, then we can go straight
+	if (heading < 0.15) { // if our angle is approximately zero, then we can go straight
 		heading = 0.0;
 		// we should have reached our destination once this segment is done. Go to the next point.
 		path_index++;
