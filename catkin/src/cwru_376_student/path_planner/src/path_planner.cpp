@@ -99,15 +99,13 @@ PathSegment* PathPlanner::nextSegment(){
 	// TODO: transform the map coordinates into odom space using most recent data
 	ROS_INFO("current position: (%f, %f, %f); destination: (%f, %f)", current_pose.pose.position.x, current_pose.pose.position.y, atan2(current_pose.pose.orientation.w, current_pose.pose.orientation.z), dest_x, dest_y);
 	// find the distance between our current position and our destination
-	double dx = current_pose.pose.position.x - dest_x,
-		   dy = current_pose.pose.position.y - dest_y;
+	double dx = dest_x - current_pose.pose.position.x,
+		   dy = dest_y - current_pose.pose.position.y;
 	double length = sqrt(dx*dx + dy*dy);
 	// find the angle between our current orientation and our destination
 	/*
-	For a quaternion qx^2 + qy^2 + qz^2 + qw^2 = 1,
-		angle = 2*acos(qw) = 2*asin(sqrt(qx^2 + qy^2 + qz^2))
-	Since qx and qy are zero for planar rotation,
-		angle = 2*asin(qz)
+	For a quaternion | qz + qw | = 1 (qx and qy = 0 for planar rotation)
+		angle = 2*acos(qw) = 2*asin(qz)
 	We project this angle to the plane,
 		px = cos(angle) = cos(2*acos(qw)) = 2*qw^2 - 1
 		py = sin(angle) = sin(2*asin(qz)) = 2*qz*qw
@@ -124,17 +122,17 @@ PathSegment* PathPlanner::nextSegment(){
 		   qw = current_pose.pose.orientation.w,
 		   px = 2*qw*qw - 1,
 		   py = 2*qz*qw;
-	double heading = (length==0.0? 0.0: acos(/*(px*dx + py*dy)*/ dx/length)); // don't divide by zero
+	double heading = (length==0.0? 0.0: acos((px*dx + py*dy)/length)); // don't divide by zero
 	
-	ROS_INFO("Pre-path segment h=%f, l=%f", heading, length);
-	if (heading < 0.1) { // if our angle is approximately zero, then we can go straight
+	ROS_INFO("Pre-segment h=%f, l=%f", heading, length);
+	if (heading < 0.05) { // if our angle is approximately zero, then we can go straight
 		heading = 0.0;
 		// we should have reached our destination once this segment is done. Go to the next point.
 		path_index++;
 	}
 	else {
 		// determine which direction to head
-		if (/*px*dy - py*dx*/ dy < 0) {
+		if ((px*dy - py*dx) < 0) {
 			heading = -heading;
 		}
 		// turn to that direction, but don't move linearly
