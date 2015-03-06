@@ -372,7 +372,7 @@ int main(int argc, char **argv) {
 		ROS_WARN("vel_scheduler needs ROS param cmd_vel_stamped_topic");
 		return 0;
 	}
-	if (!nh.getParam("/vel_scheduler/odom_topic", odom_topic)){
+	if (!nh.getParam("/odom_topic", odom_topic)){
 		ROS_WARN("vel_scheduler needs a ROS param odom_topic");
 		return 0;
 	}
@@ -412,7 +412,7 @@ int main(int argc, char **argv) {
 	}
 
 	// the number of segments; probably will load this from path_planner in the future
-    int segment_tot = 5;
+    int segment_tot = 5000;
     for (int segment_ID = 0; ros::ok() && segment_ID < segment_tot; segment_ID++) {
 		double segment_radian = 0.0;
 		double segment_length = 0.0;

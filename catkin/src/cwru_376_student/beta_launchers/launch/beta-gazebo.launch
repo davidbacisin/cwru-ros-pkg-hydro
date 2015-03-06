@@ -1,5 +1,7 @@
 <launch>
 
+	<param name="odom_topic" value="/odom" type="str" />
+
 	<!-- Launch Lidar nodes -->
 	<include file="$(find lidar)/launch/lidar-gazebo.launch" />
 
