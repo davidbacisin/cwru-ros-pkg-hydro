@@ -97,7 +97,7 @@ PathSegment* PathPlanner::nextSegment(){
 		   dest_y = path_y[path_index];
 	
 	// TODO: transform the map coordinates into odom space using most recent data
-	ROS_INFO("current position: (%f, %f, %f); destination: (%f, %f)", current_pose.pose.position.x, current_pose.pose.position.y, atan2(current_pose.pose.orientation.w, current_pose.pose.orientation.z), dest_x, dest_y);
+	ROS_INFO("current position: (%f, %f, %f); destination: (%f, %f)", current_pose.pose.position.x, current_pose.pose.position.y, atan2(current_pose.pose.orientation.z, current_pose.pose.orientation.w), dest_x, dest_y);
 	// find the distance between our current position and our destination
 	double dx = dest_x - current_pose.pose.position.x,
 		   dy = dest_y - current_pose.pose.position.y;
@@ -122,10 +122,17 @@ PathSegment* PathPlanner::nextSegment(){
 		   qw = current_pose.pose.orientation.w,
 		   px = 2*qw*qw - 1,
 		   py = 2*qz*qw;
+		   //px = 1.0,
+		   //py = 0.0;
+	if (length < 0.05) { // don't bother. Just go to the next path index.
+		path_index++;
+		return new PathSegment(0, 0);
+	}
+
 	double heading = (length==0.0? 0.0: acos((px*dx + py*dy)/length)); // don't divide by zero
 	
 	ROS_INFO("Pre-segment h=%f, l=%f", heading, length);
-	if (heading < 0.05) { // if our angle is approximately zero, then we can go straight
+	if (heading < 0.12) { // if our angle is approximately zero, then we can go straight
 		heading = 0.0;
 		// we should have reached our destination once this segment is done. Go to the next point.
 		path_index++;
