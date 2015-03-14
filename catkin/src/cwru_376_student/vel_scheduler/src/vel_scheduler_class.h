@@ -21,10 +21,10 @@
 #include <path_planner/path_segment.h> // the service message class for getting the next path segments
 
 // define a class, including a constructor, member variables and member functions
-class VelScheduler
+class VelSchedulerClass
 {
 public:
-    VelScheduler(ros::NodeHandle* nodehandle); // "main" will need to instantiate a ROS nodehandle, then pass it to the constructor
+    VelSchedulerClass(ros::NodeHandle* nodehandle); // "main" will need to instantiate a ROS nodehandle, then pass it to the constructor
     // may choose to define public methods or public variables, if desired
 private:
     // put private member data here;  "private" data will only be available to member functions of this class;
@@ -89,6 +89,9 @@ private:
     void initializeServices();
     
     // prototype for callback functions
+    // get info from the ROS param server. Populate most of our global variables.
+    void getParams(ros::NodeHandle& nh);
+    
     // receive the pose and velocity estimates from the simulator or the physical robot
     // copy the relevant values to global variables
     // Note: stdr updates odom only at 10Hz; Jinx is ~50Hz
