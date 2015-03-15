@@ -24,8 +24,8 @@ VelSchedulerClass::VelSchedulerClass(ros::NodeHandle* nodehandle):nh_(*nodehandl
     a_max_ = 0.0; // 1m/sec^2 is 0.1 g's
     omega_max_ = 0.0; // 1 rad/sec about 6 seconds to rotate 1 full rev
     alpha_max_ = 0.0; // 0.5 rad/sec^2 takes 2 sec to get from rest to full omega
-    DT = 1.0/50.0; // choose an update rate of 50Hz
-    radian_to_go_error = 0.1;
+    DT_ = 1.0/50.0; // choose an update rate of 50Hz
+    radian_to_go_error_ = 0.1;
 
     // For communication with odometry callbacks
     odom_initialized_ = false;
@@ -35,15 +35,15 @@ VelSchedulerClass::VelSchedulerClass(ros::NodeHandle* nodehandle):nh_(*nodehandl
     odom_y_ = 0.0;
     odom_quat_z_ = 0.0;
     odom_quat_w_ = 0.0;
-    ros::Time t_last_callback_;
+    //ros::Time t_last_callback_;
     dt_odom_= 0.0; // track the time between odom callbacks
 
     // For communication with lidar, user brake, and estop
     lidar_initialized_ = false; // to check if our data is valid
-    std_msgs::Bool lidar_alarm_msg_;
+    /*std_msgs::Bool lidar_alarm_msg_;
     std_msgs::Float32 lidar_nearest_;
     std_msgs::Bool estop_on_;
-    std_msgs::Bool halt_status_;
+    std_msgs::Bool halt_status_;*/
 
     // Values for controlling how lidar affects velocity
     lidar_safe_distance_ = 0.0; // this will be loaded from the ROS param server
@@ -51,8 +51,23 @@ VelSchedulerClass::VelSchedulerClass(ros::NodeHandle* nodehandle):nh_(*nodehandl
     dist_danger_ = 0.0;
     dist_critical_ = 0.0;
     v_safe_ = 0.0;
+    
+    // initialize the timer
+    velSchedulerClass.rtimer_ = new ros::Rate(1.0 / DT_);
+    ROS_INFO("Waiting for odom data");
+    // wait until odom is ready
+    while (!velSchedulerClass.odom_initialized_){
+            ros::spinOnce();
+            rtimer_->sleep();
+    }
 
-    ros::Rate *rtimer_; // frequency corresponding to chosen sample period DT; the main loop will run this fast
+    // Wait until path_planner is ready to send data to us
+    path_planner::path_segment srv;
+    srv.request.id = 0;
+    while (!velSchedulerClass.client_.call(srv)){
+	rtimer_->sleep();
+    }
+    //ros::Rate *rtimer_; // frequency corresponding to chosen sample period DT; the main loop will run this fast
 }
 //member helper function to set up publishers;
 void VelSchedulerClass::initializePublishers()
@@ -71,10 +86,10 @@ void VelSchedulerClass::initializeSubscribers()
 {
     ROS_INFO("Initializing Subscribers");
     sub_odom_ = nh_.subscribe("odom_topic", 1, &VelSchedulerClass::odomCallback, this);
-    sub_halt_ = nh_.subscribe("user_brake", 1, &haltCallback, this);
-    sub_lidar_alarm_ = nh_.subscribe("lidar_alarm", 1, &lidarAlarmCallback, this);
-    sub_lidar_nearest_ = nh_.subscribe("lidar_nearest", 1, &lidarNearestCallback, this);
-    sub_estop_status_ = nh_.subscribe("estop_status", 1, &eStopStatusCallback, this);
+    sub_halt_ = nh_.subscribe("user_brake", 1, &VelSchedulerClass::haltCallback, this);
+    sub_lidar_alarm_ = nh_.subscribe("lidar_alarm", 1, &VelSchedulerClass::lidarAlarmCallback, this);
+    sub_lidar_nearest_ = nh_.subscribe("lidar_nearest", 1, &VelSchedulerClass::lidarNearestCallback, this);
+    sub_estop_status_ = nh_.subscribe("estop_status", 1, &VelSchedulerClass::eStopStatusCallback, this);
     //add more publishers, as needed   
 }
     
@@ -105,6 +120,24 @@ void VelSchedulerClass::getParams(ros::NodeHandle& nh_){
     dist_safe_ = lidar_safe_distance_ + 2.0;
     dist_danger_ = lidar_safe_distance_ + 0.25;
     dist_critical_ = lidar_safe_distance_;
+    
+    // load some topic names from the ROS param server
+    // these topics differ from the simulator vs actual robot
+    std::string cmd_vel_topic_,
+                cmd_vel_stamped_topic_,
+                odom_topic_;
+    if (!nh.getParam("/vel_scheduler/cmd_vel_topic", cmd_vel_topic_)){
+            ROS_WARN("vel_scheduler needs ROS param cmd_vel_topic");
+            return 0;
+    }
+    if (!nh.getParam("/vel_scheduler/cmd_vel_stamped_topic", cmd_vel_stamped_topic_)){
+            ROS_WARN("vel_scheduler needs ROS param cmd_vel_stamped_topic");
+            return 0;
+    }
+    if (!nh.getParam("/vel_scheduler/odom_topic", odom_topic_)){
+            ROS_WARN("vel_scheduler needs a ROS param odom_topic");
+            return 0;
+    }
 }
     
 // receive the pose and velocity estimates from the simulator or the physical robot
@@ -309,7 +342,7 @@ void VelScheduler::translationFunc (ros::Publisher& vel_cmd_publisher_, ros::Pub
         cmd_vel_stamped_.twist = cmd_vel_;
         cmd_vel_stamped_.header.stamp = ros::Time::now();
         vel_cmd_stamped_pub_.publish(cmd_vel_stamped_);
-        rtimer->sleep(); // sleep for remainder of timed iteration
+        rtimer_->sleep(); // sleep for remainder of timed iteration
     }    
 }
 
@@ -368,13 +401,13 @@ void VelScheduler::rotationFunc (ros::Publisher& vel_cmd_publisher_, ros::Publis
 
         cmd_vel_.linear.x = 0.0; // linear command; always zero when rotating
         cmd_vel_.angular.z = new_cmd_omega_;
-                // publish the command
-        vel_cmd_publisher_.publish(cmd_vel); 
-                // publish the time-stamped command
+        // publish the command
+        vel_cmd_publisher_.publish(cmd_vel_); 
+        // publish the time-stamped command
         cmd_vel_stamped_.twist = cmd_vel_;
         cmd_vel_stamped_.header.stamp = ros::Time::now();
         vel_cmd_stamped_pub_.publish(cmd_vel_stamped_);
-        rtimer->sleep(); // sleep for remainder of timed iteration
+        rtimer_->sleep(); // sleep for remainder of timed iteration
     }
 }
 
@@ -403,11 +436,11 @@ int main(int argc, char** argv)
     ros::init(argc, argv, "velSchedulerClass"); //node name
     ros::NodeHandle nh; // create a node handle; need to pass this to the class constructor
     
-    // load some topic names from the ROS param server
+    /*// load some topic names from the ROS param server
     // these topics differ from the simulator vs actual robot
     std::string cmd_vel_topic,
-            cmd_vel_stamped_topic,
-            odom_topic;
+                cmd_vel_stamped_topic,
+                odom_topic;
     if (!nh.getParam("/vel_scheduler/cmd_vel_topic", cmd_vel_topic)){
             ROS_WARN("vel_scheduler needs ROS param cmd_vel_topic");
             return 0;
@@ -419,12 +452,12 @@ int main(int argc, char** argv)
     if (!nh.getParam("/vel_scheduler/odom_topic", odom_topic)){
             ROS_WARN("vel_scheduler needs a ROS param odom_topic");
             return 0;
-    }
+    }*/
     
     ROS_INFO("main: instantiating an object of type VelSchedulerClass");
     VelSchedulerClass velSchedulerClass(&nh);  //instantiate an VelSchedulerClass object called velSchedulerClass  and pass in pointer to nodehandle for constructor to use
     
-    // initialize the timer
+    /*// initialize the timer
     velSchedulerClass.rtimer_ = new ros::Rate(1.0 / DT);
     ROS_INFO("Waiting for odom data");
     // wait until odom is ready
@@ -438,9 +471,9 @@ int main(int argc, char** argv)
     srv.request.id = 0;
     while (!velSchedulerClass.client_.call(srv)){
 	rtimer->sleep();
-    }
+    }*/
 
-	// the number of segments; probably will load this from path_planner in the future
+    // the number of segments; probably will load this from path_planner in the future
     int segment_tot = 5;
     for (int segment_ID = 0; ros::ok() && segment_ID < segment_tot; segment_ID++) {
 	double segment_radian = 0.0;
@@ -459,9 +492,6 @@ int main(int argc, char** argv)
 	}
     } 
     ROS_INFO("completed move distance");
-
-	// clean up the dynamic memory
-    delete velSchedulerClass.rtimer_;
 
     return 0;
 } 

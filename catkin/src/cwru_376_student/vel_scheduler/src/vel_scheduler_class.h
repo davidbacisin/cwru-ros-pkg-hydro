@@ -26,6 +26,7 @@ class VelSchedulerClass
 public:
     VelSchedulerClass(ros::NodeHandle* nodehandle); // "main" will need to instantiate a ROS nodehandle, then pass it to the constructor
     // may choose to define public methods or public variables, if desired
+    void processSegment();
 private:
     // put private member data here;  "private" data will only be available to member functions of this class;
     ros::NodeHandle nh_; // we will need this, to pass between "main" and constructor
@@ -110,7 +111,7 @@ private:
     void eStopStatusCallback(const std_msgs::Bool& ess_rcvd);
     
     //prototype for callback for ROS service
-    void getSegment(ros::ServiceClient& client, int segment_ID, double& segment_radian, double& segment_length);
+    //void getSegment(ros::ServiceClient& client, int segment_ID, double& segment_radian, double& segment_length);
     
     //prototype for some other member functions which is used to control the velocity, position, orientation and path segments for robot to go
     double getRampingFactor(double remaining, double vel, double acc);
