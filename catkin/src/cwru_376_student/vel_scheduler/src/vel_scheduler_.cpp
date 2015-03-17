@@ -53,7 +53,7 @@ VelSchedulerClass::VelSchedulerClass(ros::NodeHandle* nodehandle):nh_(*nodehandl
     v_safe_ = 0.0;
     
     // initialize the timer
-    velSchedulerClass.rtimer_ = new ros::Rate(1.0 / DT_);
+    rtimer_ = new ros::Rate(1.0 / DT_);
     ROS_INFO("Waiting for odom data");
     // wait until odom is ready
     while (!velSchedulerClass.odom_initialized_){
@@ -69,12 +69,40 @@ VelSchedulerClass::VelSchedulerClass(ros::NodeHandle* nodehandle):nh_(*nodehandl
     }
     //ros::Rate *rtimer_; // frequency corresponding to chosen sample period DT; the main loop will run this fast
 }
+
+VelSchedulerClass::~VelSchedulerClass() {
+    delete rtimer_;
+}
+
+void VelSchedulerClass::processSegment()
+{
+// the number of segments; probably will load this from path_planner in the future
+    int segment_tot_ = 5;
+    for (int segment_ID_ = 0; ros::ok() && segment_ID_ < segment_tot_; segment_ID++) {
+    double segment_radian_ = 0.0;
+    double segment_length_ = 0.0;
+    // load the segment
+    getSegment(client_, segment_ID_, segment_radian_, segment_length_);
+    // should we turn or go straight?
+        if (fabs(segment_radian_) > segment_length_){
+            rotationFunc(vel_cmd_publisher_, vel_cmd_stamped_pub_, segment_radian_);//call rotationFunc           
+        } else {
+            translationFunc(vel_cmd_publisher_, vel_cmd_stamped_pub_, segment_length_);//call translationFunc    
+        }
+        // wait a half second between path segments
+    for (int wait = 0; wait < 0.5/DT; wait++){
+            rtimer_->sleep();
+    }
+    } 
+    ROS_INFO("completed move distance");
+}
+
 //member helper function to set up publishers;
 void VelSchedulerClass::initializePublishers()
 {
     ROS_INFO("Initializing Publishers");
-    vel_cmd_publisher_ = nh_.advertise<geometry_msgs::Twist>("cmd_vel_topic", 1);
-    vel_cmd_stamped_pub_ = nh_.advertise<geometry_msgs::TwistStamped>("cmd_vel_stamped_topic", 1); 
+    vel_cmd_publisher_ = nh_.advertise<geometry_msgs::Twist>(cmd_vel_topic_, 1);
+    vel_cmd_stamped_pub_ = nh_.advertise<geometry_msgs::TwistStamped>(cmd_vel_stamped_topic_, 1); 
     //add more publishers, as needed
     // note: COULD make publishers object as public member function, if want to use it within "main()"
 }
@@ -123,9 +151,6 @@ void VelSchedulerClass::getParams(ros::NodeHandle& nh_){
     
     // load some topic names from the ROS param server
     // these topics differ from the simulator vs actual robot
-    std::string cmd_vel_topic_,
-                cmd_vel_stamped_topic_,
-                odom_topic_;
     if (!nh.getParam("/vel_scheduler/cmd_vel_topic", cmd_vel_topic_)){
             ROS_WARN("vel_scheduler needs ROS param cmd_vel_topic");
             return 0;
@@ -474,7 +499,7 @@ int main(int argc, char** argv)
     }*/
 
     // the number of segments; probably will load this from path_planner in the future
-    int segment_tot = 5;
+    /*int segment_tot = 5;
     for (int segment_ID = 0; ros::ok() && segment_ID < segment_tot; segment_ID++) {
 	double segment_radian = 0.0;
 	double segment_length = 0.0;
@@ -491,7 +516,7 @@ int main(int argc, char** argv)
 			rtimer->sleep();
 	}
     } 
-    ROS_INFO("completed move distance");
+    ROS_INFO("completed move distance");*/
 
     return 0;
 } 

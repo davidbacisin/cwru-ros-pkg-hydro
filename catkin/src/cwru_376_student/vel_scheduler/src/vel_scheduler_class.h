@@ -25,6 +25,7 @@ class VelSchedulerClass
 {
 public:
     VelSchedulerClass(ros::NodeHandle* nodehandle); // "main" will need to instantiate a ROS nodehandle, then pass it to the constructor
+    ~VelSchedulerClass();
     // may choose to define public methods or public variables, if desired
     void processSegment();
 private:
@@ -57,6 +58,11 @@ private:
            alpha_max_;
     double DT_;
     double radian_to_go_error_;
+
+    std::string cmd_vel_topic_,
+                cmd_vel_stamped_topic_,
+                odom_topic_;
+    
 
     // For communication with odometry callbacks
     bool odom_initialized_;
