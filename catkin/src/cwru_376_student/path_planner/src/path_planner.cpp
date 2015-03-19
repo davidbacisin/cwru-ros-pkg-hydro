@@ -17,10 +17,8 @@ PathSegment path_segments_[] = {
 */
 
 PathPlanner::PathPlanner(ros::NodeHandle& nh): nh_p(&nh) {
-	// specify the path segments
-	// segments = path_segments_;
-	// the number of segments
-	// segment_count = 5;
+	// create the publisher
+	segment_pub = nh.advertise<geometry_msgs::PointStamped>("path_planner", 1);
 	// create and broadcast the service
 	service = nh.advertiseService("path_planner_service", &PathPlanner::serviceCallback, this);
 	// subscribe to odom
@@ -147,6 +145,15 @@ PathSegment* PathPlanner::nextSegment(){
 	}
 
 	ROS_INFO("Path segment h=%f, l=%f", heading, length);
+	
+	// publish the path segment
+	geometry_msgs::PointStamped seg_stamped;
+	seg_stamped.header.stamp = ros::Time::now();
+	seg_stamped.point.x = length;
+	seg_stamped.point.y = heading;
+	seg_stamped.point.z = 0.0;
+	segment_pub.publish(seg_stamped);
+	
 	return new PathSegment(heading, length);
 }
 
