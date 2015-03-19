@@ -63,6 +63,7 @@ VelSchedulerClass::VelSchedulerClass(ros::NodeHandle* nodehandle): nh_(*nodehand
             ros::spinOnce();
             rtimer_->sleep();
     }
+    ROS_INFO("odom ready");
 
     // Wait until path_planner is ready to send data to us
     path_planner::path_segment srv;
@@ -70,6 +71,7 @@ VelSchedulerClass::VelSchedulerClass(ros::NodeHandle* nodehandle): nh_(*nodehand
     while (!client_.call(srv)){
 	rtimer_->sleep();
     }
+    ROS_INFO("path_planner ready");
     //ros::Rate *rtimer_; // frequency corresponding to chosen sample period DT; the main loop will run this fast
 }
 
@@ -114,7 +116,7 @@ void VelSchedulerClass::initializePublishers()
 void VelSchedulerClass::initializeSubscribers()
 {
     ROS_INFO("Initializing Subscribers");
-    sub_odom_ = nh_.subscribe("odom_topic", 1, &VelSchedulerClass::odomCallback, this);
+    sub_odom_ = nh_.subscribe(odom_topic_, 1, &VelSchedulerClass::odomCallback, this);
     sub_halt_ = nh_.subscribe("user_brake", 1, &VelSchedulerClass::haltCallback, this);
     sub_lidar_alarm_ = nh_.subscribe("lidar_alarm", 1, &VelSchedulerClass::lidarAlarmCallback, this);
     sub_lidar_nearest_ = nh_.subscribe("lidar_nearest", 1, &VelSchedulerClass::lidarNearestCallback, this);
