@@ -15,11 +15,7 @@ VelSchedulerClass::VelSchedulerClass(ros::NodeHandle* nodehandle): nh_(*nodehand
 {
     ROS_INFO("in class constructor of VelScheduler");
 
-    getParams();
-
-    initializePublishers();
-    initializeSubscribers();
-    initializeServices();
+    
     
     // Some limits on speed and acceleration. These are loaded from the ROS param server.
     v_max_ = 0.0; // 1m/sec is a slow walk
@@ -55,6 +51,12 @@ VelSchedulerClass::VelSchedulerClass(ros::NodeHandle* nodehandle): nh_(*nodehand
     dist_critical_ = 0.0;
     v_safe_ = 0.0;
     
+    getParams();
+
+    initializePublishers();
+    initializeSubscribers();
+    initializeServices();
+
     // initialize the timer
     rtimer_ = new ros::Rate(1.0 / DT_);
     ROS_INFO("Waiting for odom data");
@@ -160,7 +162,7 @@ void VelSchedulerClass::getParams(){
     if (!nh_.getParam("/vel_scheduler/cmd_vel_stamped_topic", cmd_vel_stamped_topic_)){
         ROS_WARN("vel_scheduler needs ROS param cmd_vel_stamped_topic");
     }
-    if (!nh_.getParam("/vel_scheduler/odom_topic", odom_topic_)){
+    if (!nh_.getParam("/odom_topic", odom_topic_)){
         ROS_WARN("vel_scheduler needs a ROS param odom_topic");
     }
 }
