@@ -48,7 +48,8 @@ private:
 	// map-to-odom transform
 	bool tf_is_initialized;
 	tf::TransformListener *tf_p;
-	tf::StampedTransform map_to_odom;
+	tf::StampedTransform baseLink_wrt_map,
+		map_to_odom;
 	
 public:
 	PathPlanner(ros::NodeHandle& nh);

@@ -194,20 +194,20 @@ void VelSchedulerClass::odomCallback(const nav_msgs::Odometry& odom_rcvd) {
     odom_initialized_ = true;
 
     // debug output
-    ROS_INFO("odom CB: x = %f, y= %f, quat_z = %f, quat_w = %f, v = %f, omega = %f", odom_x_, odom_y_, odom_quat_z_, odom_quat_w_, odom_vel_, odom_omega_);
+    // ROS_INFO("odom CB: x = %f, y= %f, quat_z = %f, quat_w = %f, v = %f, omega = %f", odom_x_, odom_y_, odom_quat_z_, odom_quat_w_, odom_vel_, odom_omega_);
 }
     
 // member function implementation for receiving haltCallback information
 void VelSchedulerClass::haltCallback(const std_msgs::Bool& h_rcvd){    
     // the output below could get annoying; may comment this out, but useful initially for debugging
-    ROS_INFO("halt status: %i", h_rcvd.data);
+    //ROS_INFO("halt status: %i", h_rcvd.data);
     // Update the global variable with the halt status
     halt_status_.data = h_rcvd.data;
 }
     
 // member function implementation for receiving lidarAlarmCallback information
 void VelSchedulerClass::lidarAlarmCallback(const std_msgs::Bool& la_rcvd){    
-    ROS_INFO("received lidar alarm value is: %i", la_rcvd.data);
+    //ROS_INFO("received lidar alarm value is: %i", la_rcvd.data);
     // post the received data in a global var for access by main prog
     lidar_alarm_msg_.data = la_rcvd.data;
 }
@@ -215,7 +215,7 @@ void VelSchedulerClass::lidarAlarmCallback(const std_msgs::Bool& la_rcvd){
 // member function implementation for receiving lidarNearestCallback information
 void VelSchedulerClass::lidarNearestCallback(const std_msgs::Float32& ln_rcvd){    
     // check for data on topic "lidar_dist" 
-    ROS_INFO("received lidar nearest value is: %f", ln_rcvd.data);
+    //ROS_INFO("received lidar nearest value is: %f", ln_rcvd.data);
     // post the received data in a global var for access by main prog
     lidar_nearest_.data = ln_rcvd.data;
     lidar_initialized_ = true;
@@ -224,7 +224,7 @@ void VelSchedulerClass::lidarNearestCallback(const std_msgs::Float32& ln_rcvd){
 // member function implementation for receiving eStopStatusCallback information
 void VelSchedulerClass::eStopStatusCallback(const std_msgs::Bool& ess_rcvd){  
     // check for data on topic ""lidar_alarm"" 
-    ROS_INFO("received estop status value is: %i", ess_rcvd.data);
+    //ROS_INFO("received estop status value is: %i", ess_rcvd.data);
     // post the received data in a global var for access by main prog
     estop_on_.data = !ess_rcvd.data; // boolean inverse just so that estop makes more intuitive sense
 }
@@ -250,7 +250,7 @@ double VelSchedulerClass::getRampingFactor(double remaining_, double vel_, doubl
         else {
             ramping_factor_ = sqrt(2 * remaining_ * acc_) / vel_;
         }
-        ROS_INFO("braking zone: ramping_factor_ = %f", ramping_factor_);
+        //ROS_INFO("braking zone: ramping_factor_ = %f", ramping_factor_);
     }
     else { // otherwise, go full speed
         ramping_factor_ = 1.0;
@@ -262,7 +262,7 @@ double VelSchedulerClass::getRampingFactor(double remaining_, double vel_, doubl
 double VelSchedulerClass::getVelocity(double current_vel_, double ramping_factor_, double vel_, double acc_){
     double ramped_vel_ = ramping_factor_ * vel_,
            new_vel_ = ramped_vel_;
-           ROS_INFO("ramped_vel: %f, current_vel: %f", ramped_vel_, current_vel_);
+           //ROS_INFO("ramped_vel: %f, current_vel: %f", ramped_vel_, current_vel_);
     // how does the current velocity compare to the desired (ramped) vel?
     if (current_vel_ < ramped_vel_) {  // maybe we halted, e.g. due to estop or obstacle;
         // may need to ramp up to v_max; do so within accel limits
@@ -270,22 +270,22 @@ double VelSchedulerClass::getVelocity(double current_vel_, double ramping_factor
         new_vel_ = (v_test_ < ramped_vel_) ? v_test_ : ramped_vel_; // don't overshoot ramped_vel
 
         // debug
-        ROS_INFO("v_test: %f, acc: %f, dt_odom_: %f", v_test_, acc_, dt_odom_);
+        //ROS_INFO("v_test: %f, acc: %f, dt_odom_: %f", v_test_, acc_, dt_odom_);
     }
     else if (current_vel_ > ramped_vel_) { // travelling too fast. Ramp down.
         double v_test_ = current_vel_ - 1.2 * acc_; // moving too fast--try decelerating faster than nominal acc
         new_vel_ = (v_test_ > ramped_vel_) ? v_test_ : ramped_vel_; // don't overshoot ramped_vel
 
-     // debug
-     ROS_INFO("odom vel: %f; sched vel: %f", odom_vel_, ramped_vel_);
+        // debug
+        //ROS_INFO("odom vel: %f; sched vel: %f", odom_vel_, ramped_vel_);
     } else {
             new_vel_ = ramped_vel_; // silly third case: this is already true, if here. Issue the desired velocity
     }
     // ensure there is no emergency stop!
     if (lidar_alarm_msg_.data == true || estop_on_.data == true) { // The robot should stop when either condition is true
-    new_vel_ = 0.0;
+        new_vel_ = 0.0;
 		// debug
-    ROS_INFO("Halted the robot. User brake status = %i; Lidar alarm = %i; Estop = %i", halt_status_.data, lidar_alarm_msg_.data, estop_on_.data);
+        //ROS_INFO("Halted the robot. User brake status = %i; Lidar alarm = %i; Estop = %i", halt_status_.data, lidar_alarm_msg_.data, estop_on_.data);
     }
     return new_vel_;
 }
@@ -294,7 +294,7 @@ double VelSchedulerClass::getVelocity(double current_vel_, double ramping_factor
 void VelSchedulerClass::translationFunc (ros::Publisher& vel_cmd_publisher_, ros::Publisher& vel_cmd_stamped_pub_, double segment_length_){     
     double start_x_ = odom_x_; // save our starting position so we can calculate how far we've gone
     double start_y_ = odom_y_;
-    ROS_INFO("start pose: x %f, y= %f", start_x_, start_y_);
+    //ROS_INFO("start pose: x %f, y= %f", start_x_, start_y_);
 
     geometry_msgs::Twist cmd_vel_; //create a variable of type "Twist" to publish speed/spin commands
     geometry_msgs::TwistStamped cmd_vel_stamped_; // and a twist with timestamp
@@ -316,7 +316,7 @@ void VelSchedulerClass::translationFunc (ros::Publisher& vel_cmd_publisher_, ros
         double delta_x_ = odom_x_ - start_x_;
         double delta_y_ = odom_y_ - start_y_;
         double segment_length_done_ = sqrt(delta_x_ * delta_x_ + delta_y_ * delta_y_);
-        ROS_INFO("dist travelled: %f", segment_length_done_);
+        //ROS_INFO("dist travelled: %f", segment_length_done_);
                 // calculate how much further we need to go
         dist_to_go_ = segment_length_ - segment_length_done_;
 		
@@ -328,7 +328,7 @@ void VelSchedulerClass::translationFunc (ros::Publisher& vel_cmd_publisher_, ros
             double dist_to_stop_ = lidar_nearest_.data;
 
             // debug
-            ROS_INFO("Lidar nearest: %f", lidar_nearest_.data);
+            //ROS_INFO("Lidar nearest: %f", lidar_nearest_.data);
 
             if (dist_to_stop_ <= dist_critical_){ // stop in the critical zone
                     v_max_ = 0.0;
@@ -379,7 +379,7 @@ void VelSchedulerClass::rotationFunc (ros::Publisher& vel_cmd_publisher_, ros::P
            start_y_ = odom_y_,
            start_quat_z_ = odom_quat_z_,
            start_quat_w_ = odom_quat_w_;
-    ROS_INFO("start pose: x %f, y= %f, phi = %f", start_x_, start_y_, 2.0 * atan2(start_quat_w_, start_quat_z_));
+    //ROS_INFO("start pose: x %f, y= %f, phi = %f", start_x_, start_y_, 2.0 * atan2(start_quat_w_, start_quat_z_));
 
     geometry_msgs::Twist cmd_vel_; //create a variable of type "Twist" to publish speed/spin commands
     geometry_msgs::TwistStamped cmd_vel_stamped_; // and a twist with timestamp
@@ -463,64 +463,10 @@ int main(int argc, char** argv)
     ros::init(argc, argv, "velSchedulerClass"); //node name
     ros::NodeHandle nh; // create a node handle; need to pass this to the class constructor
     
-    /*// load some topic names from the ROS param server
-    // these topics differ from the simulator vs actual robot
-    std::string cmd_vel_topic,
-                cmd_vel_stamped_topic,
-                odom_topic;
-    if (!nh.getParam("/vel_scheduler/cmd_vel_topic", cmd_vel_topic)){
-            ROS_WARN("vel_scheduler needs ROS param cmd_vel_topic");
-            return 0;
-    }
-    if (!nh.getParam("/vel_scheduler/cmd_vel_stamped_topic", cmd_vel_stamped_topic)){
-            ROS_WARN("vel_scheduler needs ROS param cmd_vel_stamped_topic");
-            return 0;
-    }
-    if (!nh.getParam("/vel_scheduler/odom_topic", odom_topic)){
-            ROS_WARN("vel_scheduler needs a ROS param odom_topic");
-            return 0;
-    }*/
-    
     ROS_INFO("main: instantiating an object of type VelSchedulerClass");
     VelSchedulerClass velSchedulerClass(&nh);  //instantiate an VelSchedulerClass object called velSchedulerClass  and pass in pointer to nodehandle for constructor to use
     
     velSchedulerClass.processSegment();
-
-    /*// initialize the timer
-    velSchedulerClass.rtimer_ = new ros::Rate(1.0 / DT);
-    ROS_INFO("Waiting for odom data");
-    // wait until odom is ready
-    while (!velSchedulerClass.odom_initialized_){
-            ros::spinOnce();
-            rtimer->sleep();
-    }
-
-    // Wait until path_planner is ready to send data to us
-    path_planner::path_segment srv;
-    srv.request.id = 0;
-    while (!velSchedulerClass.client_.call(srv)){
-	rtimer->sleep();
-    }*/
-
-    // the number of segments; probably will load this from path_planner in the future
-    /*int segment_tot = 5;
-    for (int segment_ID = 0; ros::ok() && segment_ID < segment_tot; segment_ID++) {
-	double segment_radian = 0.0;
-	double segment_length = 0.0;
-	// load the segment
-	getSegment(client, segment_ID, segment_radian, segment_length);
-	// should we turn or go straight?
-        if (fabs(segment_radian) > segment_length){
-            rotationFunc(vel_cmd_publisher, vel_cmd_stamped_pub, segment_radian);//call rotationFunc           
-        } else {
-            translationFunc(vel_cmd_publisher, vel_cmd_stamped_pub, segment_length);//call translationFunc    
-        }
-		// wait a half second between path segments
-	for (int wait = 0; wait < 0.5/DT; wait++){
-			rtimer->sleep();
-	}
-    } 
-    ROS_INFO("completed move distance");*/
 
     return 0;
 } 

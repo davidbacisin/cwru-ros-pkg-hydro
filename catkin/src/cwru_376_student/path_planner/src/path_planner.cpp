@@ -2,19 +2,6 @@
 
 // Define the list of path segments, in order.
 // The array index becomes the ID of the segment.
-/*
-PathSegment path_segments_[] = {
-	//PathSegment(0.0, 4.0),
-	// PathSegment(-M_PI/2.0, 0.0),
-	// PathSegment(M_PI, 0.0),
-	// PathSegment(-M_PI/2.0, 0.0)
-	PathSegment(0.0, 4.4),
-	PathSegment(-M_PI/2.0, 0.0),
-	PathSegment(0.0, 12.2),
-	PathSegment(-M_PI*0.53, 0.0),
-	PathSegment(0.0, 6.0)
-};
-*/
 
 PathPlanner::PathPlanner(ros::NodeHandle& nh): nh_p(&nh) {
 	// create the publisher
@@ -31,10 +18,10 @@ PathPlanner::PathPlanner(ros::NodeHandle& nh): nh_p(&nh) {
 
 	// wait for valid transform data
 	tf_is_initialized = false;
-	/*tf_p = new tf::TransformListener;
+	tf_p = new tf::TransformListener(nh);
 	while (!tf_is_initialized) {
 		try {
-			tf_p->lookupTransform("odom", "map", ros::Time(0), map_to_odom);
+			tf_p->lookupTransform("map", "base_link", ros::Time(0), baseLink_wrt_map);
 			tf_is_initialized = true;
 		}
 		catch (tf::TransformException& exception) {
@@ -44,7 +31,8 @@ PathPlanner::PathPlanner(ros::NodeHandle& nh): nh_p(&nh) {
 			ros::Duration(0.5).sleep();
 		}
 	}
-	ROS_INFO("tf is ready");*/	
+	ROS_INFO("tf is ready");
+
 	ROS_INFO("Ready to fulfill path segment requests");
 }
 
@@ -54,6 +42,12 @@ void PathPlanner::odomCallback(const nav_msgs::Odometry& odom_rcvd) {
 	current_pose.header = odom_rcvd.header;
 	// we have data, so set to true
 	odom_is_initialized = true;
+
+	if (tf_is_initialized) {
+		geometry_msgs::PoseStamped transformed_pose;
+		tf_p->transformPose("map", current_pose, transformed_pose);
+		ROS_INFO("Current map position: (%f, %f)", transformed_pose.pose.position.x, transformed_pose.pose.position.y);
+	}
 }
 
 // ROS service callback used to fetch length/heading coordinates from this node
@@ -104,25 +98,28 @@ PathSegment* PathPlanner::nextSegment(){
 	if (path_index < 0 ||
 		path_index > path_x.size() ||
 		path_index > path_y.size()) {
+		ROS_WARN("No more path segments!");
 		return NULL;
 	}
 	// transform from map to odom space using most recent data
-	geometry_msgs::PointStamped dest;
-		dest.header.frame_id = "map";
-		dest.header.stamp = ros::Time::now();
-		dest.point.x = path_x[path_index];
-		dest.point.y = path_y[path_index];
-		dest.point.z = 0.0;
+	geometry_msgs::PointStamped map, odom_point;
+		map.header.frame_id = "map";
+		map.header.stamp = ros::Time::now();
+		map.point.x = path_x[path_index];
+		map.point.y = path_y[path_index];
+		map.point.z = 0.0;
 	try {
-		//tf_p->transformPoint("odom", dest, dest);
+		tf_p->transformPoint("odom", map, odom_point);
 	}
 	catch (tf::TransformException& exception) {
 		ROS_ERROR("%s", exception.what());
 	}
 	// get the transformed destination coordinates
-	double dest_x = dest.point.x,
-		   dest_y = dest.point.y;
-	ROS_INFO("current position: (%f, %f, %f); destination: (%f, %f)", current_pose.pose.position.x, current_pose.pose.position.y, atan2(current_pose.pose.orientation.z, current_pose.pose.orientation.w), dest_x, dest_y);
+	double dest_x = odom_point.point.x,
+		   dest_y = odom_point.point.y;
+	ROS_INFO("current wrt odom: (%f, %f); destination wrt map: (%f, %f); destination wrt odom: (%f, %f)", current_pose.pose.position.x, current_pose.pose.position.y,
+		map.point.x, map.point.y, 
+		dest_x, dest_y);
 	// find the distance between our current position and our destination
 	double dx = dest_x - current_pose.pose.position.x,
 		   dy = dest_y - current_pose.pose.position.y;
