@@ -28,6 +28,23 @@ PathPlanner::PathPlanner(ros::NodeHandle& nh): nh_p(&nh) {
 		return;
 	}
 	odom_subscriber = nh.subscribe(odom_topic, 1, &PathPlanner::odomCallback, this);
+
+	// wait for valid transform data
+	tf_is_initialized = false;
+	tf_p = new tf::TransformListener;
+	while (!tf_is_initialized) {
+		try {
+			tf_p->lookupTransform("odom", "map", ros::Time(0), map_to_odom);
+			tf_is_initialized = true;
+		}
+		catch (tf::TransformException& exception) {
+			ROS_ERROR("%s", exception.what());
+			tf_is_initialized = false;
+			ros::spinOnce();
+			ros::Duration(0.5).sleep();
+		}
+	}
+	ROS_INFO("tf is ready");
 	
 	ROS_INFO("Ready to fulfill path segment requests");
 }
@@ -90,11 +107,22 @@ PathSegment* PathPlanner::nextSegment(){
 		path_index > path_y.size()) {
 		return NULL;
 	}
-	// get the destination coordinates
-	double dest_x = path_x[path_index],
-		   dest_y = path_y[path_index];
-	
-	// TODO: transform the map coordinates into odom space using most recent data
+	// transform from map to odom space using most recent data
+	tf::Stamped<Point> dest;
+		dest.frame_id_ = "map";
+		dest.stamp_ = ros::Time::now();
+		dest.x = path_x[path_index];
+		dest.y = path_y[path_index]
+		dest.z = 0.0;
+	try {
+		tf_p->transformPoint("odom", dest, dest);
+	}
+	catch (tf::TransformException& exception) {
+		ROS_ERROR("%s", exception.what());
+	}
+	// get the transformed destination coordinates
+	double dest_x = dest.x,
+		   dest_y = dest.y;
 	ROS_INFO("current position: (%f, %f, %f); destination: (%f, %f)", current_pose.pose.position.x, current_pose.pose.position.y, atan2(current_pose.pose.orientation.z, current_pose.pose.orientation.w), dest_x, dest_y);
 	// find the distance between our current position and our destination
 	double dx = dest_x - current_pose.pose.position.x,
@@ -120,8 +148,6 @@ PathSegment* PathPlanner::nextSegment(){
 		   qw = current_pose.pose.orientation.w,
 		   px = 2*qw*qw - 1,
 		   py = 2*qz*qw;
-		   //px = 1.0,
-		   //py = 0.0;
 	if (length < 0.1) { // don't bother. Just go to the next path index.
 		path_index++;
 		return new PathSegment(0, 0);
