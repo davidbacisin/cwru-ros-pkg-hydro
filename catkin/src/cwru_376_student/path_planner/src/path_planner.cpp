@@ -43,11 +43,11 @@ void PathPlanner::odomCallback(const nav_msgs::Odometry& odom_rcvd) {
 	// we have data, so set to true
 	odom_is_initialized = true;
 
-	if (tf_is_initialized) {
+	/*if (tf_is_initialized) {
 		geometry_msgs::PoseStamped transformed_pose;
 		tf_p->transformPose("map", current_pose, transformed_pose);
 		ROS_INFO("Current map position: (%f, %f)", transformed_pose.pose.position.x, transformed_pose.pose.position.y);
-	}
+	}*/
 }
 
 // ROS service callback used to fetch length/heading coordinates from this node
