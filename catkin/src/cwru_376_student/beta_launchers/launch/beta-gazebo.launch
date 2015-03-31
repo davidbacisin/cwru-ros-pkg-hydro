@@ -13,5 +13,8 @@
 	<node name="path_planner" pkg="path_planner" type="path_planner" respawn="true">
 		<rosparam command="load" file="$(find beta_launchers)/launch/common.yaml" />
 	</node>
+	
+	<!-- Launch AMCL -->
+	<include file="$(find cwru_nav)/launch/start_amcl_2ndfloor.launch" />
 
 </launch>
