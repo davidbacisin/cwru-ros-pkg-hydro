@@ -69,17 +69,18 @@ int main(int argc, char** argv)
     //ros::Rate sleep_timer(UPDATE_RATE); //a timer for desired rate to send new traj points as commands
     trajectory_msgs::JointTrajectory new_trajectory; // an empty trajectory
     //trajectory_msgs::JointTrajectoryPoint trajectory_point1;
-    //trajectory_msgs::JointTrajectoryPoint trajectory_point2;
-    //trajectory_msgs::JointTrajectoryPoint[] trajectory_points[10];
+    //trajectory_msgs::JointTrajectoryPoint t rajectory_point2;
     
-    std::vector<trajectory_msgs::JointTrajectoryPoint> trajectory_point(10); //defining a vector
-    
-   
+    // define a trajectory points vector, which has 10 points from the initial position to final position
+    std::vector<trajectory_msgs::JointTrajectoryPoint> trajectory_points(10);
     
     /*// build an example trajectory:
     trajectory_point1.positions.clear();    
     trajectory_point2.positions.clear();  
     */
+    for (int i = 0; i < trajectory_points.size(); ++i){
+        trajectory_points[i].positions.clear();
+    }
     
     new_trajectory.points.clear();
     new_trajectory.joint_names.push_back("joint_1");
