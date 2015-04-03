@@ -1,7 +1,9 @@
 # vel_scheduler
 
-Here are nodes that publish speed and spin values on the topic specified by the ROS param
-`/vel_scheduler/cmd_vel_topic` and `/vel_scheduler/cmd_vel_stamped_topic`. 
+This node publishes speed and spin values on the topics specified by the ROS parameters
+`/vel_scheduler/cmd_vel_topic` and `/vel_scheduler/cmd_vel_stamped_topic`. It determines what values to 
+publish by querying "path_planner" for the next segment in the 
+desired path.
 
 The version "vel_scheduler" is reactive.  It ramps velocity up and down and will recover from halts.
 To do so, it uses odometry info, published by Jinx (or a simulator) on the topic specified by 

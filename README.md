@@ -19,3 +19,5 @@ for details on a specific file please refer to the readme found at the package l
 03/09/15 - Redesigned "path_planner" to function as the desired state generator, which is responsible for feeding path segment information to the "vel_scheduler". Further improved "vel_scheduler" velocity and acceleration control to function dynamically based on both robot parameters entered in the "vel_scheduler" launch file and real world object detection.
 
 03/19/15 - Redesigned "vel_scheduler" to use class based architecture, this has improved usability, debugging efficiency, and will make further integrations more streamlined. AMCL is also in the process of being added to the team's functionality.
+
+03/31/15 - AMCL has been fully integrated with "path_planner".
