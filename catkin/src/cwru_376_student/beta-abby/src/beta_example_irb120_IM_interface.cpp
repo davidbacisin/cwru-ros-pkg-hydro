@@ -112,6 +112,12 @@ void stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::JointTrajectory &new_tr
         interJointAngle.push_back((*it1 - *it2) / 49.0);
     }
     
+    std::vector<Vectorq6x1> interJointAngleVec(50-1);
+    interJointAngleVec[0] = g_q_state + interJointAngle;
+    for (std::vector<Vectorq6x1>::size_type i = 1; i != interJointAngleVec.size(); ++!){
+        interJointAngleVec[i] = interJointAngleVec[i-1] + interJointAngle;
+    }
+    
     for (std::vector<trajectory_msgs::JointTrajectoryPoint>::size_type i = 0; i < trajectory_points.size(); ++i){
         if (i == 0){
             for (std::vector<string>::size_type ijnt = 0; ijnt < new_trajectory.joint_names.size(); ijnt++){
@@ -121,25 +127,26 @@ void stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::JointTrajectory &new_tr
         } else {
             //time_from_start is relative to trajectory.header.stamp 
             //each trajectory point's time_from_start must be greater than the last
-            for (std::vector<string>::size_type ijnt = 0; ijnt < new_trajectory.joint_names.size(); ijnt++){
-                trajectory_points[i].positions.push_back(interJointAngle[ijnt]);
-            }
-        trajectory_points[i].time_from_start = ros::Duration(2*i); 
+           trajectory_points[i].positions.push_back(interJointAngleVec[i-1]);
+           trajectory_points[i].time_from_start = ros::Duration(2*i); 
         }
     }    
     
     // start from home pose... really, should should start from current pose!
-    new_trajectory.points.push_back(trajectory_point1); // add this single trajectory point to the trajectory vector   
-    new_trajectory.points.push_back(trajectory_point2); // quick hack--return to home pose
+    for (std::vector<trajectory_msgs::JointTrajectoryPoint>::size_type i = 0; i < trajectory_points.size(); ++i){
+        new_trajectory.points.push_back(trajectory_points[i]);
+    }
+    //new_trajectory.points.push_back(trajectory_point1); // add this single trajectory point to the trajectory vector   
+    //new_trajectory.points.push_back(trajectory_point2); // quick hack--return to home pose
     
     // fill in the target pose: really should fill in a sequence of poses leading to this goal
-    trajectory_point2.time_from_start =    ros::Duration(4.0);  
+    /*trajectory_point2.time_from_start =    ros::Duration(4.0);  
     for (vector<string>::size_type ijnt = 0; ijnt < new_trajectory.joint_names.size(); ijnt++) {
             trajectory_point2.positions[ijnt] = qvec[ijnt];
-    }
+    }*/
     
-    std::vector<trajectory_msgs::JointTrajectoryPoint>::iterator itend = trajectory_points.end();
-    new_trajectory.points.push_back(*itend); // append this point to trajectory
+    //std::vector<trajectory_msgs::JointTrajectoryPoint>::iterator itend = trajectory_points.end();
+    //new_trajectory.points.push_back(*itend); // append this point to trajectory
 }
 
 
