@@ -20,7 +20,8 @@
 
 //callback to subscribe to marker state
 Eigen::Vector3d g_p;
-Vectorq6x1 g_q_state;
+Eigen::Matrix<double, 6, 1> Vectorq6x1;
+Vectorq6x1 g_q_state;  //typedef Eigen::Matrix<double, 6, 1> Vectorq6x1
 double g_x,g_y,g_z;
 //geometry_msgs::Quaternion g_quat; // global var for quaternion
 Eigen::Quaterniond g_quat;
@@ -70,9 +71,11 @@ bool triggerService(cwru_srv::simple_bool_service_messageRequest& request, cwru_
 //command robot to move to "qvec" using a trajectory message, sent via ROS-I
 void stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::JointTrajectory &new_trajectory) {
     
-    trajectory_msgs::JointTrajectoryPoint trajectory_point1;
-    trajectory_msgs::JointTrajectoryPoint trajectory_point2; 
-     
+    //trajectory_msgs::JointTrajectoryPoint trajectory_point1;
+    //trajectory_msgs::JointTrajectoryPoint trajectory_point2; 
+    
+    // declaring a 50 number of elements vector objector trajectory_points(50)
+    std::vector<trajectory_msgs::JointTrajectoryPoint> trajectory_points(50);
     
     new_trajectory.points.clear();
     new_trajectory.joint_names.push_back("joint_1");
@@ -80,32 +83,63 @@ void stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::JointTrajectory &new_tr
     new_trajectory.joint_names.push_back("joint_3");
     new_trajectory.joint_names.push_back("joint_4");
     new_trajectory.joint_names.push_back("joint_5");
-    new_trajectory.joint_names.push_back("joint_6");   
-
+    new_trajectory.joint_names.push_back("joint_6");  
+    auto jointsNum = new_trajectory.joint_names.size();
+    ROS_INFO("the number of joints: ",jointsNum);
+    
     new_trajectory.header.stamp = ros::Time::now();  
     
-    trajectory_point1.positions.clear();    
-    trajectory_point2.positions.clear(); 
+    /*trajectory_point1.positions.clear();    
+    trajectory_point2.positions.clear();
+    */
+    for (std::vector<trajectory_msgs::JointTrajectoryPoint>::size_type i = 0; i < trajectory_points.size(); ++i){
+         trajectory_points[i].positions.clear();
+    }
+    
     //fill in the points of the trajectory: initially, all home angles
-    for (int ijnt=0;ijnt<6;ijnt++) {
+    /*for (int ijnt=0;ijnt<6;ijnt++) {
         trajectory_point1.positions.push_back(g_q_state[ijnt]); // stuff in position commands for 6 joints
         //should also fill in trajectory_point.time_from_start
         trajectory_point2.positions.push_back(0.0); // stuff in position commands for 6 joints        
     }
     trajectory_point1.time_from_start =    ros::Duration(0);  
     trajectory_point2.time_from_start =    ros::Duration(2.0);      
-
+    */
+    
+    Vectorq6x1 interJointAngle; // default-initializing a variable interJointAngle of type Vectorq6x1
+    interJointAngle.clear();
+    for (Vectorq6x1::iterator it1 = qvec.begin(), it2 = g_q_state.begin(); it1 != qvec.end() && it2 != g_q_state.end(); ++it1,  ++it2){
+        interJointAngle.push_back((*it1 - *it2) / 49.0);
+    }
+    
+    for (std::vector<trajectory_msgs::JointTrajectoryPoint>::size_type i = 0; i < trajectory_points.size(); ++i){
+        if (i == 0){
+            for (std::vector<string>::size_type ijnt = 0; ijnt < new_trajectory.joint_names.size(); ijnt++){
+                trajectory_points[i].positions.push_back(g_q_state[ijnt]); // stuff in position commands for 6 joints
+            }
+        trajectory_points[i].time_from_start = ros::Duration(0);    
+        } else {
+            //time_from_start is relative to trajectory.header.stamp 
+            //each trajectory point's time_from_start must be greater than the last
+            for (std::vector<string>::size_type ijnt = 0; ijnt < new_trajectory.joint_names.size(); ijnt++){
+                trajectory_points[i].positions.push_back(interJointAngle[ijnt]);
+            }
+        trajectory_points[i].time_from_start = ros::Duration(2*i); 
+        }
+    }    
+    
     // start from home pose... really, should should start from current pose!
     new_trajectory.points.push_back(trajectory_point1); // add this single trajectory point to the trajectory vector   
     new_trajectory.points.push_back(trajectory_point2); // quick hack--return to home pose
     
     // fill in the target pose: really should fill in a sequence of poses leading to this goal
-   trajectory_point2.time_from_start =    ros::Duration(4.0);  
-    for (int ijnt=0;ijnt<6;ijnt++) {
+    trajectory_point2.time_from_start =    ros::Duration(4.0);  
+    for (vector<string>::size_type ijnt = 0; ijnt < new_trajectory.joint_names.size(); ijnt++) {
             trajectory_point2.positions[ijnt] = qvec[ijnt];
-    }  
-
-    new_trajectory.points.push_back(trajectory_point2); // append this point to trajectory
+    }
+    
+    std::vector<trajectory_msgs::JointTrajectoryPoint>::iterator itend = trajectory_points.end();
+    new_trajectory.points.push_back(*itend); // append this point to trajectory
 }
 
 
@@ -160,27 +194,35 @@ int main(int argc, char** argv) {
     int nsolns;
     
     while(ros::ok()) {
-            ros::spinOnce();
-            if (g_trigger) {
-                // ooh!  excitement time!  got a new tool pose goal!
-                g_trigger=false; // reset the trigger
-                //is this point reachable?
-                A_flange_des_DH = g_A_flange_desired;
-                A_flange_des_DH.linear() = g_A_flange_desired.linear()*R_urdf_wrt_DH.transpose();
-                cout<<"R des DH: "<<endl;
-                cout<<A_flange_des_DH.linear()<<endl;
-                nsolns = ik_solver.ik_solve(A_flange_des_DH);
-                ROS_INFO("there are %d solutions",nsolns);
+        ros::spinOnce();
+        if (g_trigger) {
+            // ooh!  excitement time!  got a new tool pose goal!
+            g_trigger=false; // reset the trigger
+            //is this point reachable?
+            A_flange_des_DH = g_A_flange_desired;
+            A_flange_des_DH.linear() = g_A_flange_desired.linear()*R_urdf_wrt_DH.transpose();
+            cout<<"R des DH: "<<endl;
+            cout<<A_flange_des_DH.linear()<<endl;
+            nsolns = ik_solver.ik_solve(A_flange_des_DH);
+            ROS_INFO("there are %d solutions",nsolns);
 
-                if (nsolns>0) {      
-                    ik_solver.get_solns(q6dof_solns);  
-                    qvec = q6dof_solns[0]; // arbitrarily choose first soln                    
-                    stuff_trajectory(qvec,new_trajectory);
- 
-                        pub.publish(new_trajectory);
-                }
+            if (nsolns>0) {      
+                ik_solver.get_solns(q6dof_solns);  
+                qvec = q6dof_solns[0]; // arbitrarily choose first soln
+                // Here is the strategy to choose IK solution rationally,
+                // When multiple joints angle solus exist, we can get each
+                // column of q6dof_solns back, which each column stores
+                // one solution of joints angle. Then get abs value of each
+                // element in each column, and add each element in one column
+                // then compare the sum value of each column to choose the
+                // minium one.
+                
+                stuff_trajectory(qvec,new_trajectory);
+
+                pub.publish(new_trajectory);
             }
-            sleep_timer.sleep();    
+        }
+        sleep_timer.sleep();    
             
     }
     
