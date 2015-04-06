@@ -20,7 +20,6 @@
 
 //callback to subscribe to marker state
 Eigen::Vector3d g_p;
-Eigen::Matrix<double, 6, 1> Vectorq6x1;
 Vectorq6x1 g_q_state;  //typedef Eigen::Matrix<double, 6, 1> Vectorq6x1
 double g_x,g_y,g_z;
 //geometry_msgs::Quaternion g_quat; // global var for quaternion
@@ -71,9 +70,6 @@ bool triggerService(cwru_srv::simple_bool_service_messageRequest& request, cwru_
 //command robot to move to "qvec" using a trajectory message, sent via ROS-I
 void stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::JointTrajectory &new_trajectory) {
     
-    //trajectory_msgs::JointTrajectoryPoint trajectory_point1;
-    //trajectory_msgs::JointTrajectoryPoint trajectory_point2; 
-    
     // declaring a 50 number of elements vector objector trajectory_points(50)
     std::vector<trajectory_msgs::JointTrajectoryPoint> trajectory_points(50);
     
@@ -89,51 +85,43 @@ void stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::JointTrajectory &new_tr
     
     new_trajectory.header.stamp = ros::Time::now();  
     
-    /*trajectory_point1.positions.clear();    
-    trajectory_point2.positions.clear();
-    */
-    for (std::vector<trajectory_msgs::JointTrajectoryPoint>::size_type i = 0; i < trajectory_points.size(); ++i){
+    for (auto i = 0; i < trajectory_points.size(); ++i){
          trajectory_points[i].positions.clear();
     }
     
-    //fill in the points of the trajectory: initially, all home angles
-    /*for (int ijnt=0;ijnt<6;ijnt++) {
-        trajectory_point1.positions.push_back(g_q_state[ijnt]); // stuff in position commands for 6 joints
-        //should also fill in trajectory_point.time_from_start
-        trajectory_point2.positions.push_back(0.0); // stuff in position commands for 6 joints        
-    }
-    trajectory_point1.time_from_start =    ros::Duration(0);  
-    trajectory_point2.time_from_start =    ros::Duration(2.0);      
-    */
-    
     Vectorq6x1 interJointAngle; // default-initializing a variable interJointAngle of type Vectorq6x1
-    interJointAngle.clear();
-    for (Vectorq6x1::iterator it1 = qvec.begin(), it2 = g_q_state.begin(); it1 != qvec.end() && it2 != g_q_state.end(); ++it1,  ++it2){
-        interJointAngle.push_back((*it1 - *it2) / 49.0);
+    for (size_t i = 0; i < min( qvec.size(), g_q_state.size() ); ++i){
+        interJointAngle[i] = (qvec[i] - g_q_state[i]) / 49;
     }
     
-    std::vector<Vectorq6x1> interJointAngleVec(50-1);
-    interJointAngleVec[0] = g_q_state + interJointAngle;
-    for (std::vector<Vectorq6x1>::size_type i = 1; i != interJointAngleVec.size(); ++!){
+    std::vector<Vectorq6x1> interJointAngleVec(49); // declaring a vector which has trajectory_points.size() - 1 number of elements
+    interJointAngleVec[0] = g_q_state + interJointAngle; // defining the first element of the vector
+    // defining the rest of the element of the vector
+    for (auto i = 1; i < interJointAngleVec.size(); i++){
         interJointAngleVec[i] = interJointAngleVec[i-1] + interJointAngle;
     }
     
-    for (std::vector<trajectory_msgs::JointTrajectoryPoint>::size_type i = 0; i < trajectory_points.size(); ++i){
+    for (auto i = 0; i < trajectory_points.size(); i++){
         if (i == 0){
-            for (std::vector<string>::size_type ijnt = 0; ijnt < new_trajectory.joint_names.size(); ijnt++){
+            for (int ijnt = 0; ijnt < new_trajectory.joint_names.size(); ijnt++){
                 trajectory_points[i].positions.push_back(g_q_state[ijnt]); // stuff in position commands for 6 joints
             }
-        trajectory_points[i].time_from_start = ros::Duration(0);    
+            trajectory_points[i].time_from_start = ros::Duration(0);    
         } else {
             //time_from_start is relative to trajectory.header.stamp 
             //each trajectory point's time_from_start must be greater than the last
-           trajectory_points[i].positions.push_back(interJointAngleVec[i-1]);
-           trajectory_points[i].time_from_start = ros::Duration(2*i); 
+            //Vector6x1 q_state;
+            //q_state = interJointAngleVec[ijnt];
+            for (int ijnt = 0; ijnt < new_trajectory.joint_names.size(); ijnt++){
+                trajectory_points[i].positions.push_back(interJointAngleVec[i-1](ijnt)); // stuff in position commands for 6 joints
+            }
+            //trajectory_points[i].positions.push_back(interJointAngleVec[i-1].segment(0,5));
+            trajectory_points[i].time_from_start = ros::Duration(0.05*i); 
         }
-    }    
+    }
     
     // start from home pose... really, should should start from current pose!
-    for (std::vector<trajectory_msgs::JointTrajectoryPoint>::size_type i = 0; i < trajectory_points.size(); ++i){
+    for (int i = 0; i < 50; i++){
         new_trajectory.points.push_back(trajectory_points[i]);
     }
     //new_trajectory.points.push_back(trajectory_point1); // add this single trajectory point to the trajectory vector   
@@ -195,8 +183,7 @@ int main(int argc, char** argv) {
 
     //std::cout << "A rot: " << std::endl;
     //std::cout << A_fwd_DH.linear() << std::endl;
-    //std::cout << "A origin: " << A_fwd_DH.translation().transpose() << std::endl;   
-  
+    //std::cout << "A origin: " << A_fwd_DH.translation().transpose() << std::endl; 
     
     int nsolns;
     
@@ -215,15 +202,24 @@ int main(int argc, char** argv) {
 
             if (nsolns>0) {      
                 ik_solver.get_solns(q6dof_solns);  
-                qvec = q6dof_solns[0]; // arbitrarily choose first soln
-                // Here is the strategy to choose IK solution rationally,
-                // When multiple joints angle solus exist, we can get each
-                // column of q6dof_solns back, which each column stores
-                // one solution of joints angle. Then get abs value of each
-                // element in each column, and add each element in one column
-                // then compare the sum value of each column to choose the
-                // minium one.
-                
+                //qvec = q6dof_solns[0];
+                std::vector<int> weight{6,5,4,3,2,1}; //defining a weight vector
+                double sum;
+                double minimum = 1e6;
+                int ikSoluNo = 0;
+                Vectorq6x1 oneIkSolu;
+                for (int i = 0; i < q6dof_solns.size(); ++i){
+                    oneIkSolu = q6dof_solns[i];
+                    sum = 0;
+                    for (int ijnt = 0; ijnt < 6; ++ijnt){
+                        sum = sum + oneIkSolu[ijnt] * weight[ijnt];
+                    }
+                    if (sum < minimum){
+                        minimum = sum;
+                        ikSoluNo = i; // remember the IK solution which has the minimum last joint angle solution
+                    }
+                }
+                qvec = q6dof_solns[ikSoluNo];
                 stuff_trajectory(qvec,new_trajectory);
 
                 pub.publish(new_trajectory);
