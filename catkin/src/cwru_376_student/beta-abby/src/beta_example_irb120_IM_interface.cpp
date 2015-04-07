@@ -103,7 +103,7 @@ void stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::JointTrajectory &new_tr
     
     // push the current position
     for (int ijnt = 0; ijnt < new_trajectory.joint_names.size(); ijnt++){
-        trajectory_points[i].positions.push_back(g_q_state[ijnt]); // stuff in position commands for 6 joints
+        trajectory_points[0].positions.push_back(g_q_state[ijnt]); // stuff in position commands for 6 joints
     }
     trajectory_points[i].time_from_start = ros::Duration(0);
     // add the other positions
