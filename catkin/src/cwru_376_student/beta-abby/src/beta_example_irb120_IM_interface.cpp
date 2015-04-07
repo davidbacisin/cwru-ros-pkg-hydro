@@ -101,23 +101,22 @@ void stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::JointTrajectory &new_tr
         interJointAngleVec[i] = interJointAngleVec[i-1] + interJointAngle;
     }
     
-    for (auto i = 0; i < trajectory_points.size(); i++){
-        if (i == 0){
-            for (int ijnt = 0; ijnt < new_trajectory.joint_names.size(); ijnt++){
-                trajectory_points[i].positions.push_back(g_q_state[ijnt]); // stuff in position commands for 6 joints
-            }
-            trajectory_points[i].time_from_start = ros::Duration(0);    
-        } else {
-            //time_from_start is relative to trajectory.header.stamp 
-            //each trajectory point's time_from_start must be greater than the last
-            //Vector6x1 q_state;
-            //q_state = interJointAngleVec[ijnt];
-            for (int ijnt = 0; ijnt < new_trajectory.joint_names.size(); ijnt++){
-                trajectory_points[i].positions.push_back(interJointAngleVec[i-1](ijnt)); // stuff in position commands for 6 joints
-            }
-            //trajectory_points[i].positions.push_back(interJointAngleVec[i-1].segment(0,5));
-            trajectory_points[i].time_from_start = ros::Duration(0.05*i); 
+    // push the current position
+    for (int ijnt = 0; ijnt < new_trajectory.joint_names.size(); ijnt++){
+        trajectory_points[i].positions.push_back(g_q_state[ijnt]); // stuff in position commands for 6 joints
+    }
+    trajectory_points[i].time_from_start = ros::Duration(0);
+    // add the other positions
+    for (auto i = 1; i < trajectory_points.size(); i++){
+        //time_from_start is relative to trajectory.header.stamp 
+        //each trajectory point's time_from_start must be greater than the last
+        //Vector6x1 q_state;
+        //q_state = interJointAngleVec[ijnt];
+        for (int ijnt = 0; ijnt < new_trajectory.joint_names.size(); ijnt++){
+            trajectory_points[i].positions.push_back(interJointAngleVec[i-1](ijnt)); // stuff in position commands for 6 joints
         }
+        //trajectory_points[i].positions.push_back(interJointAngleVec[i-1].segment(0,5));
+        trajectory_points[i].time_from_start = ros::Duration(0.05*i); 
     }
     
     // start from home pose... really, should should start from current pose!
