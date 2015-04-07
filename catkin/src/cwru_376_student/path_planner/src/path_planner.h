@@ -6,6 +6,7 @@
 #include <tf/transform_listener.h>
 #include <nav_msgs/Odometry.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/PointStamped.h>
 #include <path_planner/path_segment.h> // the service message class
 #include <math.h>
 #include <vector>
@@ -39,6 +40,7 @@ private:
 	void odomCallback(const nav_msgs::Odometry& odom_rcvd); // odometry callback
 	
 	// Path service
+	ros::Publisher segment_pub;
 	ros::ServiceServer service; // the ROS service server object for listening/sending
 	// callback for when a node wants a path segment
 	bool serviceCallback(path_planner::path_segmentRequest& request, path_planner::path_segmentResponse& response);
@@ -46,7 +48,8 @@ private:
 	// map-to-odom transform
 	bool tf_is_initialized;
 	tf::TransformListener *tf_p;
-	tf::StampedTransform map_to_odom;
+	tf::StampedTransform baseLink_wrt_map,
+		map_to_odom;
 	
 public:
 	PathPlanner(ros::NodeHandle& nh);

@@ -15,7 +15,7 @@ catkin_simple()
 # cs_add_libraries(my_lib src/my_lib.cpp)   
 
 # Executables
-cs_add_executable(vel_scheduler src/vel_scheduler.cpp)
+cs_add_executable(vel_scheduler src/vel_scheduler_.cpp)
 cs_add_executable(triangle_vel src/triangle.cpp)
 # target_link_library(example my_lib)
  

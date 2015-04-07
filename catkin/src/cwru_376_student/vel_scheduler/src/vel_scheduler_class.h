@@ -97,7 +97,7 @@ private:
     
     // prototype for callback functions
     // get info from the ROS param server. Populate most of our global variables.
-    void getParams(ros::NodeHandle& nh);
+    void getParams();
     
     // receive the pose and velocity estimates from the simulator or the physical robot
     // copy the relevant values to global variables
