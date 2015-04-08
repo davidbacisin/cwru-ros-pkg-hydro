@@ -74,14 +74,8 @@ void stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::JointTrajectory &new_tr
     std::vector<trajectory_msgs::JointTrajectoryPoint> trajectory_points(50);
     
     new_trajectory.points.clear();
-    new_trajectory.joint_names.push_back("joint_1");
-    new_trajectory.joint_names.push_back("joint_2");
-    new_trajectory.joint_names.push_back("joint_3");
-    new_trajectory.joint_names.push_back("joint_4");
-    new_trajectory.joint_names.push_back("joint_5");
-    new_trajectory.joint_names.push_back("joint_6");  
     auto jointsNum = new_trajectory.joint_names.size();
-    ROS_INFO("the number of joints: ",jointsNum);
+    ROS_INFO("the number of joints: %d",jointsNum);
     
     new_trajectory.header.stamp = ros::Time::now();  
     
@@ -101,23 +95,22 @@ void stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::JointTrajectory &new_tr
         interJointAngleVec[i] = interJointAngleVec[i-1] + interJointAngle;
     }
     
-    for (auto i = 0; i < trajectory_points.size(); i++){
-        if (i == 0){
-            for (int ijnt = 0; ijnt < new_trajectory.joint_names.size(); ijnt++){
-                trajectory_points[i].positions.push_back(g_q_state[ijnt]); // stuff in position commands for 6 joints
-            }
-            trajectory_points[i].time_from_start = ros::Duration(0);    
-        } else {
-            //time_from_start is relative to trajectory.header.stamp 
-            //each trajectory point's time_from_start must be greater than the last
-            //Vector6x1 q_state;
-            //q_state = interJointAngleVec[ijnt];
-            for (int ijnt = 0; ijnt < new_trajectory.joint_names.size(); ijnt++){
-                trajectory_points[i].positions.push_back(interJointAngleVec[i-1](ijnt)); // stuff in position commands for 6 joints
-            }
-            //trajectory_points[i].positions.push_back(interJointAngleVec[i-1].segment(0,5));
-            trajectory_points[i].time_from_start = ros::Duration(0.05*i); 
+    // push the current position
+    for (int ijnt = 0; ijnt < new_trajectory.joint_names.size(); ijnt++){
+        trajectory_points[0].positions.push_back(g_q_state[ijnt]); // stuff in position commands for 6 joints
+    }
+    trajectory_points[0].time_from_start = ros::Duration(0);
+    // add the other positions
+    for (auto i = 1; i < trajectory_points.size(); i++){
+        //time_from_start is relative to trajectory.header.stamp 
+        //each trajectory point's time_from_start must be greater than the last
+        //Vector6x1 q_state;
+        //q_state = interJointAngleVec[ijnt];
+        for (int ijnt = 0; ijnt < new_trajectory.joint_names.size(); ijnt++){
+            trajectory_points[i].positions.push_back(interJointAngleVec[i-1](ijnt)); // stuff in position commands for 6 joints
         }
+        //trajectory_points[i].positions.push_back(interJointAngleVec[i-1].segment(0,5));
+        trajectory_points[i].time_from_start = ros::Duration(0.05*i); 
     }
     
     // start from home pose... really, should should start from current pose!
@@ -174,6 +167,13 @@ int main(int argc, char** argv) {
     R_urdf_wrt_DH.col(2) = b_urdf_wrt_DH;    
 
     trajectory_msgs::JointTrajectory new_trajectory; // an empty trajectory
+    
+    new_trajectory.joint_names.push_back("joint_1");
+    new_trajectory.joint_names.push_back("joint_2");
+    new_trajectory.joint_names.push_back("joint_3");
+    new_trajectory.joint_names.push_back("joint_4");
+    new_trajectory.joint_names.push_back("joint_5");
+    new_trajectory.joint_names.push_back("joint_6");  
 
     
     //qvec<<0,0,0,0,0,0;
