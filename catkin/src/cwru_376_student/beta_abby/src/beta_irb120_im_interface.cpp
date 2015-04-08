@@ -50,12 +50,12 @@ private:
     Eigen::Affine3d g_A_flange_desired_;
     bool g_trigger_;
     
-    Eigen::Vector3d p_;
+    /*Eigen::Vector3d p_;
     Eigen::Vector3d n_des_,t_des_,b_des_;
     std::vector<Vectorq6x1> q6dof_solns_;
-    Vectorq6x1 qvec_;
+    Vectorq6x1 qvec_;*/
     ros::Rate *sleep_timer_; // update rate    
-    Irb120_fwd_solver irb120_fwd_solver_; //instantiate forward and IK solvers
+    /*Irb120_fwd_solver irb120_fwd_solver_; //instantiate forward and IK solvers
     Irb120_IK_solver ik_solver_;
     Eigen::Vector3d n_urdf_wrt_DH_,t_urdf_wrt_DH_,b_urdf_wrt_DH_;
     Eigen::Matrix3d R_urdf_wrt_DH_;
@@ -64,7 +64,7 @@ private:
 
     Eigen::Affine3d A_flange_des_DH_;
     
-    int nsolns_;
+    int nsolns_;*/
     
     // member functions as well:
     void initializePublishers();
@@ -108,6 +108,7 @@ BetaInterfaceClass::BetaInterfaceClass(ros::NodeHandle* nodehandle):nh_(*nodehan
     g_A_flange_desired_;
     g_trigger_ = false;
     sleep_timer_ = new ros::Rate(10.0);
+    ROS_INFO("Initializing global variable");
 }
 
 void BetaInterfaceClass::initializePublishers() {
@@ -299,8 +300,8 @@ void BetaInterfaceClass::moveABBY (ros::Publisher& pub_, bool &g_trigger_, Eigen
 int main(int argc, char** argv) {
     ros::init(argc, argv, "simple_marker_listener"); // this will be the node name;
     ros::NodeHandle nh; // create a node handle; need to pass this to the class constructor
-    ROS_INFO("main: instantiating an object of type VelSchedulerClass");
-    BetaInterfaceClass BetaInterfaceClass(&nh);  //instantiate an VelSchedulerClass object called velSchedulerClass  and pass in pointer to nodehandle for constructor to use
+    ROS_INFO("main: instantiating an object of type BetaInterfaceClass");
+    BetaInterfaceClass BetaInterfaceClass(&nh);  //instantiate an BetaInterfaceClass object called BetaInterfaceClass and pass in pointer to nodehandle for constructor to use
     
     return 0;
 }
