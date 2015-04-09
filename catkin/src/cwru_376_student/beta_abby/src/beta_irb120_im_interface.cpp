@@ -43,7 +43,6 @@ private:
     //callback to subscribe to marker state
     Eigen::Vector3d g_p_;
     Vectorq6x1 g_q_state_;  //typedef Eigen::Matrix<double, 6, 1> Vectorq6x1
-    double g_x_,g_y_,g_z_;
     //geometry_msgs::Quaternion g_quat; // global var for quaternion
     Eigen::Quaterniond g_quat_;
     Eigen::Matrix3d g_R_;
@@ -86,7 +85,7 @@ private:
     void stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::JointTrajectory &new_trajectory);
     
     // function to command ABBY to move
-    void moveABBY (ros::Publisher& pub, bool &g_trigger, Eigen::Affine3d g_A_flange_desired);
+    void moveABBY();
 
     
 };
@@ -99,16 +98,23 @@ private:
 // DEFAULT CONSTRUCTOR DEFINITION
 BetaInterfaceClass::BetaInterfaceClass(ros::NodeHandle* nodehandle):nh_(*nodehandle)
 {
-    g_p_;
+    initializePublishers();
+    initializeSubscribers();
+    initializeServices();
+
+    /*g_p_;
     g_q_state_;  //typedef Eigen::Matrix<double, 6, 1> Vectorq6x1
-    g_x_,g_y_,g_z_;
+    */
     //geometry_msgs::Quaternion g_quat; // global var for quaternion
-    g_quat_;
+    /*g_quat_;
     g_R_;
-    g_A_flange_desired_;
+    g_A_flange_desired_;*/
     g_trigger_ = false;
     sleep_timer_ = new ros::Rate(10.0);
+
     ROS_INFO("Initializing global variable");
+
+    moveABBY();
 }
 
 void BetaInterfaceClass::initializePublishers() {
@@ -216,7 +222,7 @@ void BetaInterfaceClass::stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::Joi
     }
 }
 
-void BetaInterfaceClass::moveABBY (ros::Publisher& pub_, bool &g_trigger_, Eigen::Affine3d g_A_flange_desired_) {
+void BetaInterfaceClass::moveABBY () {
     Eigen::Vector3d p;
     Eigen::Vector3d n_des,t_des,b_des;
     std::vector<Vectorq6x1> q6dof_solns;
@@ -301,7 +307,7 @@ int main(int argc, char** argv) {
     ros::init(argc, argv, "simple_marker_listener"); // this will be the node name;
     ros::NodeHandle nh; // create a node handle; need to pass this to the class constructor
     ROS_INFO("main: instantiating an object of type BetaInterfaceClass");
-    BetaInterfaceClass BetaInterfaceClass(&nh);  //instantiate an BetaInterfaceClass object called BetaInterfaceClass and pass in pointer to nodehandle for constructor to use
-    
+    BetaInterfaceClass betaInterfaceClass(&nh);  //instantiate an BetaInterfaceClass object called BetaInterfaceClass and pass in pointer to nodehandle for constructor to use
+
     return 0;
 }
