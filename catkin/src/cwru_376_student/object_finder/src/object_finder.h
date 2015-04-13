@@ -20,12 +20,14 @@ class ObjectFinder {
 public:
 	ObjectFinder(ros::NodeHandle);
 
+	std::vector<int> segmentNearHint(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, double radius);
 	void setObjectModel(pcl::SampleConsensusModel<pcl::PointXYZ>& model);
 	Eigen::VectorXf find();
 private:
 	~ObjectFinder();
 	ros::NodeHandle nh;
-	pcl::PointXYZ hint_point;
+	Eigen::Vector3f hint_point;
+	bool hint_initialized;
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_from_disk,
 		cloud_out,
 		display_cloud,
@@ -45,6 +47,8 @@ private:
 	void kinectCB(const sensor_msgs::PointCloud2ConstPtr& cloud);
 	void selectCB(const sensor_msgs::PointCloud2ConstPtr& cloud);
 	void modeCB(cwru_srv::simple_int_service_messageRequest& request, cwru_srv::simple_int_service_messageResponse& response)
+
+	pcl::PointXYZ computeCentroid(const PointCloud<pcl::PointXYZ>::Ptr cloud);
 };
 
 #endif

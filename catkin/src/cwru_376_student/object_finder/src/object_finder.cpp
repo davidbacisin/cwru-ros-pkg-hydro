@@ -4,6 +4,8 @@
 ProcessMode process_mode = IDLE;
 
 ObjectFinder::ObjectFinder(ros::NodeHandle nh): nh(nh) {
+	hint_initialized = false;
+
 	initializeSubscribers();
 	initializePublishers();
 	initializeServices();
@@ -33,8 +35,9 @@ void ObjectFinder::selectCB(const sensor_msgs::PointCloud2ConstPtr& cloud) {
 	//ROS_INFO("frame id is: %s",cloud->header.frame_id);
 	int npts = pcl_select->width * pcl_select->height;
 	
-	// compute the centroid
-	
+	// compute and save the centroid
+	hint_point = computeCentroid(pcl_select);
+	hint_initialized = true;
 }
 
 void ObjectFinder::modeCB(cwru_srv::simple_int_service_messageRequest& request, cwru_srv::simple_int_service_messageResponse& response) {
@@ -42,6 +45,36 @@ void ObjectFinder::modeCB(cwru_srv::simple_int_service_messageRequest& request, 
 	process_mode = request.req;	
 	ROS_INFO("Process mode selected: %d", process_mode);
 	return true;
+}
+
+Eigen::Vector3f ObjectFinder::computeCentroid(const PointCloud<pcl::PointXYZ>::Ptr cloud) {
+	Eigen::Vector3f centroid;
+	centroid << 0, 0, 0; // initialize
+
+	int size = cloud->width * cloud->height;
+	for (size_t i=0; i < size; i++) {
+		centroid += cloud->points[i].getVector3fMap();
+	}
+	if (size > 0) {
+		centroid /= ((float) size);
+	}
+	return centroid;
+}
+
+
+std::vector<int> ObjectFinder::segmentNearHint(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, double radius) {
+	// segment the scene based on the input
+	if (!hint_initialized) {
+		ROS_WARN("Select some hint points in RViz first!");
+		break;
+	}
+	KdTree segmenter;
+	std::vector<int> indices;
+	std::vector<float> sqr_distances;
+
+	segmenter.setInputCloud(cloud, NULL); // null says to use the whole cloud instead of specific indices
+	segmenter.radiusSearch(hint_point, radius, indices, sqr_distances);
+	return indices;
 }
 
 void ObjectFinder::setObjectModel(pcl::SampleConsensusModel<pcl::PointXYZ>::Ptr& model) {
@@ -95,14 +128,14 @@ int main(int argc, char** argv) {
 	while(ros::ok()) {
 		switch(process_mode) {
 			case FIND_CAN:
-				// segment the scene based on the input
-				
+				// reduce the amount of data
+				std::vector<int> segment_indices = finder.segmentNearHint(cloud_from_disk, 1.0);
 				
 				// load the can model
-				finder.setObjectModel(new SampleConsensusModelCylinder<pcl::PointXYZ, pcl::PointXYZ>(cloud_segment));
+				finder.setObjectModel(new SampleConsensusModelCylinder<pcl::PointXYZ, pcl::PointXYZ>(cloud_from_disk, segment_indices));
 				
 				// tell it to go!
-				std::vector<int> inliers = finder.find();
+				Eigen::VectorXf coeff = finder.find();
 				
 				break;
 			case IDLE:
