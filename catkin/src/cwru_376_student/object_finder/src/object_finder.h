@@ -23,7 +23,7 @@ public:
 	ObjectFinder(ros::NodeHandle);
 
 	std::vector<int> segmentNearHint(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, double radius);
-	void setObjectModel(pcl::SampleConsensusModel<pcl::PointXYZ>& model);
+	void setObjectModel(pcl::SampleConsensusModel<pcl::PointXYZ>::Ptr& model);
 	Eigen::VectorXf find();
 private:
 	~ObjectFinder();

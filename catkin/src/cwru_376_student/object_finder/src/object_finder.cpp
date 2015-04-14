@@ -63,13 +63,13 @@ Eigen::Vector3f ObjectFinder::computeCentroid(const pcl::PointCloud<pcl::PointXY
 
 
 std::vector<int> ObjectFinder::segmentNearHint(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, double radius) {
-	std::vector<int> indices(0);	
+	std::vector<int> indices(0);
 	// segment the scene based on the input
 	if (!hint_initialized) {
 		ROS_WARN("Select some hint points in RViz first!");
 		return indices;
 	}
-	pcl::KdTree<pcl::PointXYZ> segmenter;
+	pcl::KdTreeFLANN<pcl::PointXYZ> segmenter;
 	std::vector<float> sqr_distances;
 
 	segmenter.setInputCloud(cloud, NULL); // null says to use the whole cloud instead of specific indices
@@ -95,7 +95,7 @@ Eigen::VectorXf ObjectFinder::find() {
 	ransac.getInliers(inliers);
 
 	// copy the inliers to a point cloud to display in rviz
-	const pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud = object_model->getInputCloud();
+	pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud = object_model->getInputCloud();
 	pcl::PointCloud<pcl::PointXYZ>::Ptr inlier_cloud;
 	pcl::copyPointCloud<pcl::PointXYZ>(*input_cloud, inliers, *inlier_cloud);
 	// publish
