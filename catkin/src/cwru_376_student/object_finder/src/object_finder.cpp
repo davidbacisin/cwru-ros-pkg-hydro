@@ -137,6 +137,7 @@ int main(int argc, char** argv) {
 				// tell it to go!
 				Eigen::VectorXf coeff = finder.find();
 				
+				ROS_INFO("Found a can at (%f, %f, %f)", coeff(0), coeff(1), coeff(2));
 				break;
 			case IDLE:
 			default:
