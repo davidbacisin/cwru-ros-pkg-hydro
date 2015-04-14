@@ -72,20 +72,19 @@ void stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::JointTrajectory &new_tr
     
     trajectory_msgs::JointTrajectoryPoint trajectory_point1;
     trajectory_msgs::JointTrajectoryPoint trajectory_point2; 
+    //trajectory_msgs::JointTrajectoryPoint trajectory_point3; 
+
      
     
     new_trajectory.points.clear();
-    new_trajectory.joint_names.push_back("joint_1");
-    new_trajectory.joint_names.push_back("joint_2");
-    new_trajectory.joint_names.push_back("joint_3");
-    new_trajectory.joint_names.push_back("joint_4");
-    new_trajectory.joint_names.push_back("joint_5");
-    new_trajectory.joint_names.push_back("joint_6");   
+      
 
     new_trajectory.header.stamp = ros::Time::now();  
     
     trajectory_point1.positions.clear();    
-    trajectory_point2.positions.clear(); 
+    trajectory_point2.positions.clear();
+    //trajectory_point3.positions.clear();
+
     //fill in the points of the trajectory: initially, all home angles
     for (int ijnt=0;ijnt<6;ijnt++) {
         trajectory_point1.positions.push_back(g_q_state[ijnt]); // stuff in position commands for 6 joints
@@ -145,7 +144,12 @@ int main(int argc, char** argv) {
     R_urdf_wrt_DH.col(2) = b_urdf_wrt_DH;    
 
     trajectory_msgs::JointTrajectory new_trajectory; // an empty trajectory
-
+    new_trajectory.joint_names.push_back("joint_1");
+    new_trajectory.joint_names.push_back("joint_2");
+    new_trajectory.joint_names.push_back("joint_3");
+    new_trajectory.joint_names.push_back("joint_4");
+    new_trajectory.joint_names.push_back("joint_5");
+    new_trajectory.joint_names.push_back("joint_6");
     
     //qvec<<0,0,0,0,0,0;
     Eigen::Affine3d A_flange_des_DH;

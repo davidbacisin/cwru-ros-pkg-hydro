@@ -71,26 +71,30 @@ bool triggerService(cwru_srv::simple_bool_service_messageRequest& request, cwru_
 void stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::JointTrajectory &new_trajectory) {
     
     // declaring a 50 number of elements vector objector trajectory_points(50)
-    std::vector<trajectory_msgs::JointTrajectoryPoint> trajectory_points(50);
-    //std::vector<trajectory_msgs::JointTrajectoryPoint> trajectory_points2(25);
+    std::vector<trajectory_msgs::JointTrajectoryPoint> trajectory_points1(25);
+    std::vector<trajectory_msgs::JointTrajectoryPoint> trajectory_points2(25);
 
     new_trajectory.points.clear();  
     auto jointsSum = new_trajectory.joint_names.size();
-    auto trajPointsSum = trajectory_points.size(); // This trajPointsSum is the sum value of the trajectory points ABBY go thru
-    //auto trajPointsSum2 = trajectory_points2.size();
-    ROS_INFO("the number of joints: ",jointsSum);
+    auto trajPointsSum1 = trajectory_points1.size(); // This trajPointsSum is the sum value of the trajectory points ABBY go thru
+    auto trajPointsSum2 = trajectory_points2.size();
+    ROS_INFO("the number of joints: %d",jointsSum);
 
     new_trajectory.header.stamp = ros::Time::now();  
     
-    for (auto i = 0; i < trajPointsSum; ++i){
-         trajectory_points[i].positions.clear();
+    for (auto i = 0; i < trajPointsSum1; ++i){
+         trajectory_points1[i].positions.clear();
+    }
+
+    for (auto i = 0; i < trajPointsSum2; ++i){
+         trajectory_points2[i].positions.clear();
     }
 
     Vectorq6x1 ptAboveTb; // the joints angles which make ABBY from current position to a point above from the table
     ptAboveTb << 0.0, -2*3.14/6, 2*3.14/10, 0.0, 2*3.14/10, 0.0;
     Vectorq6x1 interJointAngle1; // default-initializing a variable interJointAngle of type Vectorq6x1
     for (size_t i = 0; i < min( ptAboveTb.size(), g_q_state.size() ); ++i){
-        interJointAngle1[i] = (ptAboveTb[i] - g_q_state[i]) / (25);
+        interJointAngle1[i] = (ptAboveTb[i] - g_q_state[i]) / (24);
     }
 
     
@@ -104,32 +108,28 @@ void stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::JointTrajectory &new_tr
     
 
     for (int ijnt = 0; ijnt < jointsSum; ijnt++){
-        trajectory_points[0].positions.push_back(g_q_state[ijnt]); // stuff in position commands for 6 joints
+        trajectory_points1[0].positions.push_back(g_q_state[ijnt]); // stuff in position commands for 6 joints
     }
-    trajectory_points[0].time_from_start = ros::Duration(0);
+    trajectory_points1[0].time_from_start = ros::Duration(0);
     for (auto i = 1; i < 25; i++){
         //time_from_start is relative to trajectory.header.stamp 
         //each trajectory point's time_from_start must be greater than the last
         for (int ijnt = 0; ijnt < jointsSum; ijnt++){
-            trajectory_points[i].positions.push_back(interJointAngleVec1[i-1](ijnt)); // stuff in position commands for 6 joints
+            trajectory_points1[i].positions.push_back(interJointAngleVec1[i-1](ijnt)); // stuff in position commands for 6 joints
         }
         //trajectory_points[i].positions.push_back(interJointAngleVec[i-1].segment(0,5));
-        trajectory_points[i].time_from_start = ros::Duration(0.05*i); 
+        trajectory_points1[i].time_from_start = ros::Duration(0.05*i); 
     }
-    
-    // starting from current position to travel to a point above table
-    for (int i = 0; i < 25; i++){
-        new_trajectory.points.push_back(trajectory_points[i]);
-    }
-
-
     
     //new_trajectory.points.clear();
     Vectorq6x1 interJointAngle2; // default-initializing a variable interJointAngle of type Vectorq6x1
     for (size_t i = 0; i < min( qvec.size(), ptAboveTb.size() ); ++i){
-        interJointAngle2[i] = (qvec[i] - ptAboveTb[i]) / (25);
+        interJointAngle2[i] = (qvec[i] - ptAboveTb[i]) / (24);
+        
     }
-
+    //ROS_INFO("itnerJointAngle2: %f",interJointAngle2);
+    //auto intjsize = interJointAngle2.size();
+    //ROS_INFO("interJointAngle2size: %d",intjsize);
     std::vector<Vectorq6x1> interJointAngleVec2(24); // declaring a vector which has trajectory_points.size() - 1 number of elements
     auto interJointAngleVecSum2 = interJointAngleVec2.size();
     interJointAngleVec2[0] = ptAboveTb + interJointAngle2; // defining the first element of the vector
@@ -140,22 +140,26 @@ void stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::JointTrajectory &new_tr
     
 
     for (int ijnt = 0; ijnt < jointsSum; ijnt++){
-        trajectory_points[25].positions.push_back(ptAboveTb[ijnt]); // stuff in position commands for 6 joints
+        trajectory_points2[0].positions.push_back(ptAboveTb[ijnt]); // stuff in position commands for 6 joints
     }
-    trajectory_points[25].time_from_start = ros::Duration(1.205);
-    for (auto i = 26; i < trajPointsSum; i++){
+    trajectory_points2[0].time_from_start = ros::Duration(1.4);
+    for (auto i = 1; i < 25; i++){
         //time_from_start is relative to trajectory.header.stamp 
         //each trajectory point's time_from_start must be greater than the last
         for (int ijnt = 0; ijnt < jointsSum; ijnt++){
-            trajectory_points[i].positions.push_back(interJointAngleVec2[i-1](ijnt)); // stuff in position commands for 6 joints
+            trajectory_points2[i].positions.push_back(interJointAngleVec2[i-1](ijnt)); // stuff in position commands for 6 joints
         }
         //trajectory_points[i].positions.push_back(interJointAngleVec[i-1].segment(0,5));
-        trajectory_points[i].time_from_start = ros::Duration(1.205+0.05*i); 
+        trajectory_points2[i].time_from_start = ros::Duration(1.4+0.05*i); 
     }
     
     // starting a point above table to the final point
-    for (int i = 25; i < trajPointsSum; i++){
-        new_trajectory.points.push_back(trajectory_points[i]);
+    for (int i = 0; i < 25; i++){
+        new_trajectory.points.push_back(trajectory_points1[i]);
+    }
+
+    for (int i = 0; i < 25; i++){
+        new_trajectory.points.push_back(trajectory_points2[i]);
     }
 
     //new_trajectory.points.push_back(trajectory_point1); // add this single trajectory point to the trajectory vector   
@@ -242,7 +246,7 @@ int main(int argc, char** argv) {
             if (nsolns>0) {      
                 ik_solver.get_solns(q6dof_solns);  
                 //qvec = q6dof_solns[0];
-                std::vector<int> weight{6,5,4,3,2,1}; //defining a weight vector
+                std::vector<int> weight{1,2,3,3,2,1}; //defining a weight vector
                 double sum;
                 double minimum = 1e6;
                 int ikSoluNo = 0;
