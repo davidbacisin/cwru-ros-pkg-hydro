@@ -42,7 +42,7 @@ void ObjectFinder::selectCB(const sensor_msgs::PointCloud2ConstPtr& cloud) {
 
 bool ObjectFinder::modeCB(cwru_srv::simple_int_service_messageRequest& request, cwru_srv::simple_int_service_messageResponse& response) {
 	response.resp = true;
-	process_mode = request.req;
+	process_mode = (ProcessMode) request.req;
 	ROS_INFO("Process mode selected: %d", process_mode);
 	return true;
 }
@@ -63,13 +63,13 @@ Eigen::Vector3f ObjectFinder::computeCentroid(const pcl::PointCloud<pcl::PointXY
 
 
 std::vector<int> ObjectFinder::segmentNearHint(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, double radius) {
+	std::vector<int> indices(0);	
 	// segment the scene based on the input
 	if (!hint_initialized) {
 		ROS_WARN("Select some hint points in RViz first!");
-		break;
+		return indices;
 	}
-	KdTree segmenter;
-	std::vector<int> indices;
+	pcl::KdTree<pcl::PointXYZ> segmenter;
 	std::vector<float> sqr_distances;
 
 	segmenter.setInputCloud(cloud, NULL); // null says to use the whole cloud instead of specific indices
