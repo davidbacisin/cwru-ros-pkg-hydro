@@ -4,6 +4,7 @@
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h> 
 #include <pcl/point_types.h>
+#include <pcl/conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/sample_consensus/ransac.h>
 #include <pcl/sample_consensus/sac_model_cylinder.h>
@@ -46,9 +47,9 @@ private:
 
 	void kinectCB(const sensor_msgs::PointCloud2ConstPtr& cloud);
 	void selectCB(const sensor_msgs::PointCloud2ConstPtr& cloud);
-	void modeCB(cwru_srv::simple_int_service_messageRequest& request, cwru_srv::simple_int_service_messageResponse& response)
+	void modeCB(cwru_srv::simple_int_service_messageRequest& request, cwru_srv::simple_int_service_messageResponse& response);
 
-	pcl::PointXYZ computeCentroid(const PointCloud<pcl::PointXYZ>::Ptr cloud);
+	pcl::PointXYZ computeCentroid(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
 };
 
 #endif
