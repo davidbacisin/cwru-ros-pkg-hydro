@@ -40,14 +40,14 @@ void ObjectFinder::selectCB(const sensor_msgs::PointCloud2ConstPtr& cloud) {
 	hint_initialized = true;
 }
 
-void ObjectFinder::modeCB(cwru_srv::simple_int_service_messageRequest& request, cwru_srv::simple_int_service_messageResponse& response) {
+bool ObjectFinder::modeCB(cwru_srv::simple_int_service_messageRequest& request, cwru_srv::simple_int_service_messageResponse& response) {
 	response.resp = true;
-	process_mode = request.req;	
+	process_mode = request.req;
 	ROS_INFO("Process mode selected: %d", process_mode);
 	return true;
 }
 
-Eigen::Vector3f ObjectFinder::computeCentroid(const PointCloud<pcl::PointXYZ>::Ptr cloud) {
+Eigen::Vector3f ObjectFinder::computeCentroid(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud) {
 	Eigen::Vector3f centroid;
 	centroid << 0, 0, 0; // initialize
 

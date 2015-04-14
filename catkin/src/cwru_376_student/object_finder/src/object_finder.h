@@ -29,8 +29,7 @@ private:
 	ros::NodeHandle nh;
 	Eigen::Vector3f hint_point;
 	bool hint_initialized;
-	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_from_disk,
-		cloud_out,
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out,
 		display_cloud,
 		pcl_select,
 		can_cloud;
@@ -47,9 +46,9 @@ private:
 
 	void kinectCB(const sensor_msgs::PointCloud2ConstPtr& cloud);
 	void selectCB(const sensor_msgs::PointCloud2ConstPtr& cloud);
-	void modeCB(cwru_srv::simple_int_service_messageRequest& request, cwru_srv::simple_int_service_messageResponse& response);
+	bool modeCB(cwru_srv::simple_int_service_messageRequest& request, cwru_srv::simple_int_service_messageResponse& response);
 
-	pcl::PointXYZ computeCentroid(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
+	Eigen::Vector3f computeCentroid(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
 };
 
 #endif
