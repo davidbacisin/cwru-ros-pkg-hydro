@@ -5,6 +5,8 @@
 #include <ros/ros.h>
 #include <visualization_msgs/Marker.h>
 #include <geometry_msgs/Point.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <tf/transform_listener.h>
 #include <iostream>
 #include <math.h>
 #include <stdlib.h>
@@ -27,20 +29,46 @@ Eigen::Quaterniond g_quat;
 Eigen::Matrix3d g_R;
 Eigen::Affine3d g_A_flange_desired;
 bool g_trigger=false;
+tf::TransformListener *g_tf;
 using namespace std;
 
 void markerListenerCB(const visualization_msgs::InteractiveMarkerFeedbackConstPtr &feedback) {
     ROS_INFO_STREAM(feedback->marker_name << " is now at "
             << feedback->pose.position.x << ", " << feedback->pose.position.y
             << ", " << feedback->pose.position.z);
+	// transform
+	geometry_msgs::PoseStamped marker,
+			wrtlink1;
+		marker.header.frame_id = "base_link";
+		marker.header.stamp = ros::Time::now();
+		marker.pose.position.x = feedback->pose.position.x;
+		marker.pose.position.y = feedback->pose.position.y;
+		marker.pose.position.z = feedback->pose.position.z;
+		marker.pose.orientation.x = feedback->pose.orientation.x;
+		marker.pose.orientation.y = feedback->pose.orientation.y;
+		marker.pose.orientation.z = feedback->pose.orientation.z;
+		marker.pose.orientation.w = feedback->pose.orientation.w;
+	try {
+		g_tf->transformPose("link1", marker, wrtlink1);
+	}
+	catch (tf::TransformException& exception) {
+		ROS_ERROR("%s", exception.what());
+	}
+	g_p[0] = wrtlink1.pose.position.x;
+	g_p[1] = wrtlink1.pose.position.y;
+	g_p[2] = wrtlink1.pose.position.z;
+	g_quat.x() = wrtlink1.pose.orientation.x;
+	g_quat.y() = wrtlink1.pose.orientation.y;
+	g_quat.z() = wrtlink1.pose.orientation.z;
+	g_quat.w() = wrtlink1.pose.orientation.w; 
     //copy to global vars:
-    g_p[0] = feedback->pose.position.x;
+    /*g_p[0] = feedback->pose.position.x;
     g_p[1] = feedback->pose.position.y;
     g_p[2] = feedback->pose.position.z;
     g_quat.x() = feedback->pose.orientation.x;
     g_quat.y() = feedback->pose.orientation.y;
     g_quat.z() = feedback->pose.orientation.z;
-    g_quat.w() = feedback->pose.orientation.w;   
+    g_quat.w() = feedback->pose.orientation.w;  */
     g_R = g_quat.matrix();
 }
 
@@ -75,7 +103,7 @@ void stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::JointTrajectory &new_tr
     std::vector<trajectory_msgs::JointTrajectoryPoint> trajectory_points2(25);
 
     new_trajectory.points.clear();  
-    auto jointsSum = new_trajectory.joint_names.size();
+    int jointsSum = new_trajectory.joint_names.size();
     auto trajPointsSum1 = trajectory_points1.size(); // This trajPointsSum is the sum value of the trajectory points ABBY go thru
     auto trajPointsSum2 = trajectory_points2.size();
     ROS_INFO("the number of joints: %d",jointsSum);
@@ -229,6 +257,22 @@ int main(int argc, char** argv) {
     //std::cout << "A origin: " << A_fwd_DH.translation().transpose() << std::endl; 
     
     int nsolns;
+
+	bool tf_is_initialized = false;
+	tf::StampedTransform baseLink_wrt_link1;
+	g_tf = new tf::TransformListener(nh);
+	while (!tf_is_initialized) {
+		try {
+			g_tf->lookupTransform("link1", "base_link", ros::Time(0), baseLink_wrt_link1);
+			tf_is_initialized = true;
+		}
+		catch (tf::TransformException& exception) {
+			ROS_ERROR("%s", exception.what());
+			tf_is_initialized = false;
+			ros::spinOnce();
+			ros::Duration(0.5).sleep();
+		}
+	}
     
     while(ros::ok()) {
         ros::spinOnce();
