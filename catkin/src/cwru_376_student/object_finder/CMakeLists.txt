@@ -3,6 +3,14 @@ project(object_finder)
 
 find_package(catkin_simple REQUIRED)
 
+find_package(PCL 1.7 REQUIRED)
+include_directories(${PCL_INCLUDE_DIRS})
+link_directories(${PCL_LIBRARY_DIRS})
+add_definitions(${PCL_DEFINITIONS})
+
+find_package(Eigen REQUIRED)
+include_directories(${Eigen_INCLUDE_DIRS})
+
 catkin_simple()
 
 # example boost usage
@@ -17,6 +25,8 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
 # Executables
 cs_add_executable(object_finder src/object_finder.cpp)
 # target_link_library(example my_lib)
+
+target_link_libraries(object_finder ${PCL_LIBRARIES})
 
 cs_install()
 cs_export()

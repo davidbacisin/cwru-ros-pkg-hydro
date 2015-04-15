@@ -6,9 +6,10 @@
 #include <pcl/point_types.h>
 #include <pcl/conversions.h>
 #include <pcl/point_cloud.h>
+#include <pcl_ros/point_cloud.h>
 #include <pcl/sample_consensus/ransac.h>
 #include <pcl/sample_consensus/sac_model_cylinder.h>
-#include <pcl/kdtree/kdtree.h>
+#include <pcl/kdtree/kdtree_flann.h>
 
 #include <cwru_srv/simple_int_service_message.h> // for the process mode service
 #include <Eigen/Eigen>
@@ -21,12 +22,12 @@ enum ProcessMode {
 class ObjectFinder {
 public:
 	ObjectFinder(ros::NodeHandle);
+	~ObjectFinder();
 
 	std::vector<int> segmentNearHint(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, double radius);
 	void setObjectModel(pcl::SampleConsensusModel<pcl::PointXYZ>::Ptr& model);
 	Eigen::VectorXf find();
 private:
-	~ObjectFinder();
 	ros::NodeHandle nh;
 	Eigen::Vector3f hint_point;
 	bool hint_initialized;

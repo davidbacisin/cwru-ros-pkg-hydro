@@ -71,9 +71,10 @@ std::vector<int> ObjectFinder::segmentNearHint(const pcl::PointCloud<pcl::PointX
 	}
 	pcl::KdTreeFLANN<pcl::PointXYZ> segmenter;
 	std::vector<float> sqr_distances;
+	pcl::PointXYZ pcl_hint(hint_point.x(), hint_point.y(), hint_point.z());
 
-	segmenter.setInputCloud(cloud, NULL); // null says to use the whole cloud instead of specific indices
-	segmenter.radiusSearch(hint_point, radius, indices, sqr_distances);
+	segmenter.setInputCloud(cloud);
+	segmenter.radiusSearch(pcl_hint, radius, indices, sqr_distances);
 	return indices;
 }
 
@@ -95,7 +96,7 @@ Eigen::VectorXf ObjectFinder::find() {
 	ransac.getInliers(inliers);
 
 	// copy the inliers to a point cloud to display in rviz
-	pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud = object_model->getInputCloud();
+	const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud = object_model->getInputCloud();
 	pcl::PointCloud<pcl::PointXYZ>::Ptr inlier_cloud;
 	pcl::copyPointCloud<pcl::PointXYZ>(*input_cloud, inliers, *inlier_cloud);
 	// publish
@@ -103,7 +104,7 @@ Eigen::VectorXf ObjectFinder::find() {
 
 	// return the model coefficients
 	Eigen::VectorXf coeff;
-	ransac->getModelCoefficients(coeff);
+	ransac.getModelCoefficients(coeff);
 	return coeff;
 }
 
@@ -127,18 +128,20 @@ int main(int argc, char** argv) {
 
 	while(ros::ok()) {
 		switch(process_mode) {
-			case FIND_CAN:
+			case FIND_CAN:{
 				// reduce the amount of data
 				std::vector<int> segment_indices = finder.segmentNearHint(cloud_from_disk, 1.0);
 				
 				// load the can model
-				finder.setObjectModel(new SampleConsensusModelCylinder<pcl::PointXYZ, pcl::PointXYZ>(cloud_from_disk, segment_indices));
+				pcl::SampleConsensusModel<pcl::PointXYZ>::Ptr can(new pcl::SampleConsensusModelCylinder<pcl::PointXYZ, pcl::Normal>(cloud_from_disk, segment_indices));
+				finder.setObjectModel(can);
 				
 				// tell it to go!
 				Eigen::VectorXf coeff = finder.find();
 				
 				ROS_INFO("Found a can at (%f, %f, %f)", coeff(0), coeff(1), coeff(2));
 				break;
+			}
 			case IDLE:
 			default:
 				break;
