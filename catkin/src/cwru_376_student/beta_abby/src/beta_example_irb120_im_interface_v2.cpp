@@ -17,6 +17,7 @@
 #include "trajectory_msgs/JointTrajectory.h"
 #include "trajectory_msgs/JointTrajectoryPoint.h"
 #include <sensor_msgs/JointState.h>
+#include <tf/transform_listener.h>
 
 //callback to subscribe to marker state
 Eigen::Vector3d g_p;
@@ -27,13 +28,27 @@ Eigen::Quaterniond g_quat;
 Eigen::Matrix3d g_R;
 Eigen::Affine3d g_A_flange_desired;
 bool g_trigger=false;
+
+ 
+tf::TransformListener* g_tfListener;
+tf::StampedTransform g_armlink1_wrt_baseLink;
+geometry_msgs::PoseStamped g_marker_pose_in;
+geometry_msgs::PoseStamped g_marker_pose_wrt_arm_base;
+
 using namespace std;
 
-void markerListenerCB(const visualization_msgs::InteractiveMarkerFeedbackConstPtr &feedback) {
+void markerListenerCB(
+        const visualization_msgs::InteractiveMarkerFeedbackConstPtr &feedback) {
     ROS_INFO_STREAM(feedback->marker_name << " is now at "
             << feedback->pose.position.x << ", " << feedback->pose.position.y
             << ", " << feedback->pose.position.z);
+    ROS_INFO_STREAM("marker frame_id is "<<feedback->header.frame_id);
+    g_marker_pose_in.header = feedback->header;
+    g_marker_pose_in.pose=feedback->pose;
+    g_tfListener->transformPose("link1", g_marker_pose_in, g_marker_pose_wrt_arm_base);
+     
     //copy to global vars:
+     /*
     g_p[0] = feedback->pose.position.x;
     g_p[1] = feedback->pose.position.y;
     g_p[2] = feedback->pose.position.z;
@@ -41,10 +56,22 @@ void markerListenerCB(const visualization_msgs::InteractiveMarkerFeedbackConstPt
     g_quat.y() = feedback->pose.orientation.y;
     g_quat.z() = feedback->pose.orientation.z;
     g_quat.w() = feedback->pose.orientation.w;   
-    g_R = g_quat.matrix();
+    g_R = g_quat.matrix(); */
+     
+    g_p[0] = g_marker_pose_wrt_arm_base.pose.position.x;
+    g_p[1] = g_marker_pose_wrt_arm_base.pose.position.y;
+    g_p[2] = g_marker_pose_wrt_arm_base.pose.position.z;
+    g_quat.x() = g_marker_pose_wrt_arm_base.pose.orientation.x;
+    g_quat.y() = g_marker_pose_wrt_arm_base.pose.orientation.y;
+    g_quat.z() = g_marker_pose_wrt_arm_base.pose.orientation.z;
+    g_quat.w() = g_marker_pose_wrt_arm_base.pose.orientation.w;   
+    g_R = g_quat.matrix();      
+
+
 }
 
-void jointStateCB(const sensor_msgs::JointStatePtr &js_msg) {
+void jointStateCB(
+const sensor_msgs::JointStatePtr &js_msg) {
     
     for (int i=0;i<6;i++) {
         g_q_state[i] = js_msg->position[i];
@@ -69,7 +96,8 @@ bool triggerService(cwru_srv::simple_bool_service_messageRequest& request, cwru_
 
 //command robot to move to "qvec" using a trajectory message, sent via ROS-I
 void stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::JointTrajectory &new_trajectory) {
-std::vector<trajectory_msgs::JointTrajectoryPoint> trajectory_points1(25);
+    
+    std::vector<trajectory_msgs::JointTrajectoryPoint> trajectory_points1(25);
     std::vector<trajectory_msgs::JointTrajectoryPoint> trajectory_points2(25);
 
     new_trajectory.points.clear();  
@@ -161,7 +189,6 @@ std::vector<trajectory_msgs::JointTrajectoryPoint> trajectory_points1(25);
     }
 }
 
-
 int main(int argc, char** argv) {
     ros::init(argc, argv, "simple_marker_listener"); // this will be the node name;
     ros::NodeHandle nh;
@@ -213,6 +240,29 @@ int main(int argc, char** argv) {
     //std::cout << "A rot: " << std::endl;
     //std::cout << A_fwd_DH.linear() << std::endl;
     //std::cout << "A origin: " << A_fwd_DH.translation().transpose() << std::endl;   
+    
+    
+    g_tfListener = new tf::TransformListener;  //create a transform listener
+    
+    // wait to start receiving valid tf transforms between map and odom:
+    bool tferr=true;
+    ROS_INFO("waiting for tf between base_link and link1 of arm...");
+    while (tferr) {
+        tferr=false;
+        try {
+                //try to lookup transform from target frame "odom" to source frame "map"
+            //The direction of the transform returned will be from the target_frame to the source_frame. 
+             //Which if applied to data, will transform data in the source_frame into the target_frame. See tf/CoordinateFrameConventions#Transform_Direction
+                g_tfListener->lookupTransform("base_link", "link1", ros::Time(0), g_armlink1_wrt_baseLink);
+            } catch(tf::TransformException &exception) {
+                ROS_ERROR("%s", exception.what());
+                tferr=true;
+                ros::Duration(0.5).sleep(); // sleep for half a second
+                ros::spinOnce();                
+            }   
+    }
+    ROS_INFO("tf is good");
+    // from now on, tfListener will keep track of transforms        
   
     
     int nsolns;
@@ -231,11 +281,29 @@ int main(int argc, char** argv) {
                 ROS_INFO("there are %d solutions",nsolns);
 
                 if (nsolns>0) {      
-                    ik_solver.get_solns(q6dof_solns);  
-                    qvec = q6dof_solns[0]; // arbitrarily choose first soln                    
-                    stuff_trajectory(qvec,new_trajectory);
- 
-                        pub.publish(new_trajectory);
+                ik_solver.get_solns(q6dof_solns);  
+                //qvec = q6dof_solns[0];
+                std::vector<int> weight{1,2,3,3,2,1}; //defining a weight vector
+                double sum;
+                double minimum = 1e6;
+                int ikSoluNo = 0;
+                Vectorq6x1 oneIkSolu;
+                for (int i = 0; i < q6dof_solns.size(); ++i){
+                    oneIkSolu = q6dof_solns[i];
+                    sum = 0;
+                    for (int ijnt = 0; ijnt < 6; ++ijnt){
+                        sum = sum + oneIkSolu[ijnt] * weight[ijnt];
+                    }
+                    if (sum < minimum){
+                        minimum = sum;
+                        ikSoluNo = i; // remember the IK solution which has the minimum last joint angle solution
+                    }
+                }
+                qvec = q6dof_solns[ikSoluNo];
+
+                stuff_trajectory(qvec,new_trajectory);
+
+                pub.publish(new_trajectory);
                 }
             }
             sleep_timer.sleep();    

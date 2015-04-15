@@ -22,6 +22,7 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
 # cs_add_executable(beta-abby src/beta_test_ik_traj_sender2.cpp)
 cs_add_executable(beta_example_irb120_im_interface src/beta_example_irb120_im_interface.cpp)
 cs_add_executable(beta_irb120_im_interface src/beta_irb120_im_interface.cpp)
+cs_add_executable(beta_example_irb120_im_interface_v2 src/beta_example_irb120_im_interface_v2.cpp)
 # target_link_library(example my_lib)
  
 cs_install()
