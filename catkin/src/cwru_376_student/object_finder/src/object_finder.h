@@ -26,7 +26,7 @@ public:
 	ObjectFinder(ros::NodeHandle);
 
 	std::vector<int> segmentNearHint(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, double radius);
-	void setObjectModel(pcl::SampleConsensusModel<pcl::PointXYZ>::Ptr& model);
+	void setObjectModel(pcl::SampleConsensusModelFromNormals<pcl::PointXYZ, pcl::Normal>::Ptr& model);
 	Eigen::VectorXf find();
 	
 	// make public so external functions can use the publisher
@@ -40,7 +40,7 @@ private:
 		display_cloud,
 		pcl_select,
 		can_cloud;
-	pcl::SampleConsensusModel<pcl::PointXYZ>::Ptr object_model;
+	pcl::SampleConsensusModelFromNormals<pcl::PointXYZ, pcl::Normal>::Ptr object_model;
 
 	// ros publishers, subscribers, services
 	ros::Subscriber pclPoints,

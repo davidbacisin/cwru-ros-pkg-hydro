@@ -79,18 +79,30 @@ std::vector<int> ObjectFinder::segmentNearHint(const pcl::PointCloud<pcl::PointX
 	return indices;
 }
 
-void ObjectFinder::setObjectModel(pcl::SampleConsensusModel<pcl::PointXYZ>::Ptr& model) {
+void ObjectFinder::setObjectModel(pcl::SampleConsensusModelFromNormals<pcl::PointXYZ, pcl::Normal>::Ptr& model) {
 	// this is just a setter method	
 	object_model = model;
 }
 
-Eigen::VectorXf ObjectFinder::find() {
-	const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud = object_model->getInputCloud();
+Eigen::VectorXf ObjectFinder::find(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud) {
+	//const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud = object_model->getInputCloud();
+	// compute and set the normals
+	pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
+	pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> normal_estimator;
+	normal_estimator.setSearchMethod(pcl::search::KdTree<pcl::PointXYZ>::Ptr (new pcl::search::KdTree<pcl::PointXYZ>));
+	//normal_estimator.setRadiusSearch()
+	normal_estimator.setInputCloud(input_cloud);
+	normal_estimator.compute(*normals);
 	// initialize the algorithm
-	pcl::RandomSampleConsensus<pcl::PointXYZ> ransac(object_model);
+	//pcl::RandomSampleConsensus<pcl::Normal> ransac(object_model);
+	pcl::SACSegmentationFromNormals<pcl::PointXYZ, pcl::Normal> seg;
 	// set the maximum allowed distance to the model
 	ransac.setDistanceThreshold(0.01);
 	ransac.setMaxIterations(100);
+	seg.setModelType(pcl::SACMODEL_CYLINDER);
+	seg.setMethodType(pcl::SAC_RANSAC);
+	seg.setInputCloud(input_cloud);
+	seg.setInputNormals(input_normals);
 	// go
 	ransac.computeModel();
 	// return the point cloud
@@ -137,16 +149,8 @@ int main(int argc, char** argv) {
 				if (segment_indices.size()){
 					// load the can model
 					pcl::SampleConsensusModelFromNormals<pcl::PointXYZ, pcl::Normal>::Ptr can(new pcl::SampleConsensusModelCylinder<pcl::PointXYZ, pcl::Normal>(cloud_from_disk, segment_indices));
-					// compute and set the normals
-					pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
-					pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> normal_estimator;
-					normal_estimator.setSearchMethod(pcl::search::KdTree<pcl::PointXYZ>::Ptr (new pcl::search::KdTree<pcl::PointXYZ>));
-					//normal_estimator.setRadiusSearch()
-					normal_estimator.setInputCloud(cloud_from_disk);
-					normal_estimator.compute(*normals);
-					can->setInputNormals(normals);
 
-					finder.setObjectModel((pcl::SampleConsensusModel<pcl::PointXYZ, pcl::Normal>::Ptr) can);
+					finder.setObjectModel(can);
 
 					
 					// tell it to go!
