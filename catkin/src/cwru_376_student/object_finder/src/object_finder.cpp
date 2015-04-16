@@ -5,6 +5,7 @@ ProcessMode process_mode = IDLE;
 
 ObjectFinder::ObjectFinder(ros::NodeHandle nh): nh(nh) {
 	hint_initialized = false;
+	pcl_select = (pcl::PointCloud<pcl::PointXYZ>::Ptr) new pcl::PointCloud<pcl::PointXYZ>;
 
 	initializeSubscribers();
 	initializePublishers();
@@ -16,17 +17,17 @@ void ObjectFinder::initializeSubscribers() {
 	// pclPoints = nh.subscribe<sensor_msgs::PointCloud2>("/kinect/depth/points", 1, &ObjectFinder::kinectCB, this);
 
 	// the selected points from rviz
-	selectedPoints = nh.subscribe<sensor_msgs::PointCloud2>("/selected_Points", 1, &ObjectFinder::selectCB, this);
+	selectedPoints = nh.subscribe<sensor_msgs::PointCloud2>("/selected_points", 1, &ObjectFinder::selectCB, this);
 }
 
 void ObjectFinder::initializePublishers() {
 	// to display in rviz
-	pubCloud = nh.advertise<sensor_msgs::PointCloud2>("/plane_model", 1);
+	pubCloud = nh.advertise<sensor_msgs::PointCloud2>("/object_finder_model", 1);
 	pubPcdCloud = nh.advertise<sensor_msgs::PointCloud2>("/kinect_pointcloud", 1);
 }
 
 void ObjectFinder::initializeServices() {
-	ros::ServiceServer service = nh.advertiseService("process_mode", &ObjectFinder::modeCB, this);
+	service = nh.advertiseService("process_mode", &ObjectFinder::modeCB, this);
 }
 
 void ObjectFinder::selectCB(const sensor_msgs::PointCloud2ConstPtr& cloud) {
@@ -84,6 +85,7 @@ void ObjectFinder::setObjectModel(pcl::SampleConsensusModel<pcl::PointXYZ>::Ptr&
 }
 
 Eigen::VectorXf ObjectFinder::find() {
+	const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud = object_model->getInputCloud();
 	// initialize the algorithm
 	pcl::RandomSampleConsensus<pcl::PointXYZ> ransac(object_model);
 	// set the maximum allowed distance to the model
@@ -96,7 +98,6 @@ Eigen::VectorXf ObjectFinder::find() {
 	ransac.getInliers(inliers);
 
 	// copy the inliers to a point cloud to display in rviz
-	const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud = object_model->getInputCloud();
 	pcl::PointCloud<pcl::PointXYZ>::Ptr inlier_cloud;
 	pcl::copyPointCloud<pcl::PointXYZ>(*input_cloud, inliers, *inlier_cloud);
 	// publish
@@ -112,8 +113,9 @@ int main(int argc, char** argv) {
 	ros::init(argc, argv, "object_finder");
 	ros::NodeHandle nh;
 
-	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_from_disk,
-		cloud_segment;
+	ROS_INFO("Starting object_finder");
+
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_from_disk(new pcl::PointCloud<pcl::PointXYZ>);
 
 	// load a point cloud from file
 	if (pcl::io::loadPCDFile<pcl::PointXYZ> ("test_pcd.pcd", *cloud_from_disk) == -1) { 
@@ -122,7 +124,7 @@ int main(int argc, char** argv) {
 	}
 	ROS_INFO("Loaded %d data points from test_pcd.pcd", cloud_from_disk->width * cloud_from_disk->height);
 	// set the cloud reference frame
-	cloud_from_disk->header.frame_id = "base_link";
+	cloud_from_disk->header.frame_id = "world";
 
 	ObjectFinder finder(nh);
 
@@ -132,19 +134,36 @@ int main(int argc, char** argv) {
 				// reduce the amount of data
 				std::vector<int> segment_indices = finder.segmentNearHint(cloud_from_disk, 1.0);
 				
-				// load the can model
-				pcl::SampleConsensusModel<pcl::PointXYZ>::Ptr can(new pcl::SampleConsensusModelCylinder<pcl::PointXYZ, pcl::Normal>(cloud_from_disk, segment_indices));
-				finder.setObjectModel(can);
-				
-				// tell it to go!
-				Eigen::VectorXf coeff = finder.find();
-				
-				ROS_INFO("Found a can at (%f, %f, %f)", coeff(0), coeff(1), coeff(2));
+				if (segment_indices.size()){
+					// load the can model
+					pcl::SampleConsensusModelFromNormals<pcl::PointXYZ, pcl::Normal>::Ptr can(new pcl::SampleConsensusModelCylinder<pcl::PointXYZ, pcl::Normal>(cloud_from_disk, segment_indices));
+					// compute and set the normals
+					pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
+					pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> normal_estimator;
+					normal_estimator.setSearchMethod(pcl::search::KdTree<pcl::PointXYZ>::Ptr (new pcl::search::KdTree<pcl::PointXYZ>));
+					//normal_estimator.setRadiusSearch()
+					normal_estimator.setInputCloud(cloud_from_disk);
+					normal_estimator.compute(*normals);
+					can->setInputNormals(normals);
+
+					finder.setObjectModel((pcl::SampleConsensusModel<pcl::PointXYZ, pcl::Normal>::Ptr) can);
+
+					
+					// tell it to go!
+					Eigen::VectorXf coeff = finder.find();
+					
+					ROS_INFO("Found a can at (%f, %f, %f)", coeff(0), coeff(1), coeff(2));
+				}
 				break;
 			}
 			case IDLE:
 			default:
 				break;
 		}
+		
+		finder.pubPcdCloud.publish(*cloud_from_disk);
+
+		ros::spinOnce();
+		ros::Duration(0.5).sleep();
 	}
 }

@@ -7,7 +7,9 @@
 #include <pcl/conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl_ros/point_cloud.h>
+#include <pcl/features/normal_3d.h>
 #include <pcl/sample_consensus/ransac.h>
+#include <pcl/sample_consensus/sac_model.h>
 #include <pcl/sample_consensus/sac_model_cylinder.h>
 #include <pcl/kdtree/kdtree_flann.h>
 
@@ -22,11 +24,14 @@ enum ProcessMode {
 class ObjectFinder {
 public:
 	ObjectFinder(ros::NodeHandle);
-	~ObjectFinder();
 
 	std::vector<int> segmentNearHint(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, double radius);
 	void setObjectModel(pcl::SampleConsensusModel<pcl::PointXYZ>::Ptr& model);
 	Eigen::VectorXf find();
+	
+	// make public so external functions can use the publisher
+	ros::Publisher pubCloud,
+		pubPcdCloud;	
 private:
 	ros::NodeHandle nh;
 	Eigen::Vector3f hint_point;
@@ -40,8 +45,7 @@ private:
 	// ros publishers, subscribers, services
 	ros::Subscriber pclPoints,
 		selectedPoints;
-	ros::Publisher pubCloud,
-		pubPcdCloud;
+	ros::ServiceServer service;
 	void initializeSubscribers();
 	void initializePublishers();
 	void initializeServices();
