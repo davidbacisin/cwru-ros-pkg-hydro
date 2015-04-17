@@ -22,7 +22,7 @@ void ObjectFinder::initializeSubscribers() {
 
 void ObjectFinder::initializePublishers() {
 	// to display in rviz
-	pubCloud = nh.advertise<sensor_msgs::PointCloud2>("/object_finder_model", 1);
+	pubCloud = nh.advertise<sensor_msgs::PointCloud2>("/object_finder/computed_model", 1);
 	pubPcdCloud = nh.advertise<sensor_msgs::PointCloud2>("/kinect_pointcloud", 1);
 }
 
@@ -79,50 +79,78 @@ std::vector<int> ObjectFinder::segmentNearHint(const pcl::PointCloud<pcl::PointX
 	return indices;
 }
 
-void ObjectFinder::setObjectModel(pcl::SampleConsensusModelFromNormals<pcl::PointXYZ, pcl::Normal>::Ptr& model) {
-	// this is just a setter method	
-	object_model = model;
+pcl::ModelCoefficients::Ptr ObjectFinder::findCan(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud) {
+	// tell the segmenter what to find	
+	seg.setModelType(pcl::SACMODEL_CYLINDER);
+	seg.setRadiusLimits(0.08, 0.09);
+
+	pcl::ModelCoefficients::Ptr coeff = find(input_cloud);
+
+	// create a point cloud to display as the can
+	double theta,h;
+	int i, npts = 0;
+    	Eigen::Vector3f pt;
+	pcl::PointCloud<pcl::PointXYZ>::Ptr can_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+	// count the points
+	for (theta = 0; theta < 2.0*M_PI; theta += 0.3)
+		for (h = 0; h < CAN_HEIGHT; h += 0.01)  
+			npts++;
+	// resize the cloud
+	can_cloud->points.resize(npts);
+	// add the points
+	for (i = 0, theta = 0; theta < 2.0*M_PI;i++, theta += 0.3) {
+		for (h=0; h < h_can; h+= 0.01) {
+			// radius = coeff->values[6]
+			pt[0] = coeff->values[6] * cos(theta);
+			pt[1] = coeff->values[6] * sin(theta);
+			pt[2] = h;
+			can_cloud->points[i].getVector3fMap() = pt;
+		}
+	}
+	// transform to the appropriate location
+  	pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+	Eigen::Affine3f trx = Eigen::Affine3f::Identity();
+	Eigen::Vector3f src = Vector3f::UnitZ(),
+		dest(coeff->values[3], coeff->values[4], coeff->values[5]);
+	dest.normalize();
+	trx.row(0) = (src * dest).normalized();
+	trx.row(1) = (dest * trx.row(0)).normalized();
+	trx.row(2) = dest;
+	trx += Translation3f(coeff->values[0], coeff->values[1], coeff->values[2]);
+	pcl::transformPointCloud(*can_cloud, *transformed_cloud, trx);
+	// metadata
+	transformed_cloud->header = input_cloud->header;
+	transformed_cloud->header.stamp = ros::Time::now();
+	transformed_cloud->is_dense = true;
+	transformed_cloud->width = npts;
+	transformed_cloud->height = 1;
+	// publish
+	pubCloud.publish(transformed_cloud);
+
+	return coeff;
 }
 
 pcl::ModelCoefficients::Ptr ObjectFinder::find(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud) {
-	//const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud = object_model->getInputCloud();
-	// compute and set the normals
 	pcl::PointCloud<pcl::Normal>::Ptr input_normals(new pcl::PointCloud<pcl::Normal>);
 	pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> normal_estimator;
+	pcl::PointIndices::Ptr inliers_object(new pcl::PointIndices);
+	pcl::ModelCoefficients::Ptr coefficients_object(new pcl::ModelCoefficients);
+	// compute the normals
 	normal_estimator.setSearchMethod(pcl::search::KdTree<pcl::PointXYZ>::Ptr (new pcl::search::KdTree<pcl::PointXYZ>));
 	normal_estimator.setKSearch(5);
 	normal_estimator.setInputCloud(input_cloud);
 	normal_estimator.compute(*input_normals);
 	// initialize the algorithm
-	//pcl::RandomSampleConsensus<pcl::Normal> ransac(object_model);
-	pcl::SACSegmentationFromNormals<pcl::PointXYZ, pcl::Normal> seg;
-	// set the maximum allowed distance to the model
 	seg.setOptimizeCoefficients(true);
 	seg.setDistanceThreshold(0.01);
 	seg.setMaxIterations(100);
-	seg.setModelType(pcl::SACMODEL_CYLINDER);
-	seg.setRadiusLimits(0.08, 0.09);
 	seg.setMethodType(pcl::SAC_RANSAC);
+	// set the data
 	seg.setInputCloud(input_cloud);
 	seg.setInputNormals(input_normals);
 	// go
-	//ransac.computeModel();
-	pcl::PointIndices::Ptr inliers_object(new pcl::PointIndices);
-	pcl::ModelCoefficients::Ptr coefficients_object(new pcl::ModelCoefficients);
 	seg.segment(*inliers_object, *coefficients_object);
-	// return the point cloud
-	std::vector<int> inliers;
-	//ransac.getInliers(inliers);
 
-	// copy the inliers to a point cloud to display in rviz
-	pcl::PointCloud<pcl::PointXYZ>::Ptr inlier_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-	pcl::copyPointCloud<pcl::PointXYZ>(*input_cloud, inliers_object->indices, *inlier_cloud);
-	// publish
-	pubCloud.publish(inlier_cloud);
-
-	// return the model coefficients
-	//Eigen::VectorXf coeff;
-	//ransac.getModelCoefficients(coeff);
 	return coefficients_object;
 }
 
@@ -144,27 +172,36 @@ int main(int argc, char** argv) {
 	cloud_from_disk->header.frame_id = "world";
 
 	ObjectFinder finder(nh);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr search_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+	// whether or not to use the search cloud instead of the live stream
+	bool use_search_cloud = false;
 
 	while(ros::ok()) {
 		switch(process_mode) {
+			case HINT: {
+				// reduce the amount of data to near the hint
+				std::vector<int> segment_indices = finder.segmentNearHint(cloud_from_disk, 0.25);
+				// will be zero if the hint point was not specified
+				if (segment_indices.size()){
+					pcl::copyPointCloud<pcl::PointXYZ>(*cloud_from_disk, segment_indices, *search_cloud);
+					use_search_cloud = true;
+				}
+				// reset state variables
+				process_mode = IDLE;
+				break;
+			}
 			case FIND_CAN:{
-				// reduce the amount of data
-				//std::vector<int> segment_indices = finder.segmentNearHint(cloud_from_disk, 0.25);
+				// make sure we have data
+				if (!use_search_cloud){
+					search_cloud = (pcl::PointCloud<pcl::PointXYZ>::Ptr) cloud_from_disk;
+				}
 				
-				//if (segment_indices.size()){
-					// load the can model
-					//pcl::SampleConsensusModelFromNormals<pcl::PointXYZ, pcl::Normal>::Ptr can(new pcl::SampleConsensusModelCylinder<pcl::PointXYZ, pcl::Normal>(cloud_from_disk, segment_indices));
-
-					//finder.setObjectModel(can);
-					//pcl::PointCloud<pcl::PointXYZ>::Ptr search_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-					//pcl::copyPointCloud<pcl::PointXYZ>(*cloud_from_disk, segment_indices, *search_cloud);
+				pcl::ModelCoefficients::Ptr coeff = finder.findCan(search_cloud);
 					
-					//finder.pubCloud.publish(*search_cloud);
-					// tell it to go!
-					pcl::ModelCoefficients::Ptr coeff = finder.find(cloud_from_disk);
-					
-					ROS_INFO("Found a can at (%f, %f, %f) radius %f", coeff->values[0], coeff->values[1], coeff->values[2], coeff->values[6]);
-				//}
+				ROS_INFO("Found a can at (%f, %f, %f) radius %f", coeff->values[0], coeff->values[1], coeff->values[2], coeff->values[6]);
+				// reset state variables
+				use_search_cloud = false;
+				process_mode = IDLE;
 				break;
 			}
 			case IDLE:
