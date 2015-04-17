@@ -13,6 +13,7 @@
 #include <pcl/sample_consensus/ransac.h>
 #include <pcl/sample_consensus/sac_model.h>
 #include <pcl/sample_consensus/sac_model_cylinder.h>
+#include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/kdtree/kdtree_flann.h>
 
 #include <cwru_srv/simple_int_service_message.h> // for the process mode service

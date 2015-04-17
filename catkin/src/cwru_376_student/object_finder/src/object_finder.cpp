@@ -87,12 +87,12 @@ void ObjectFinder::setObjectModel(pcl::SampleConsensusModelFromNormals<pcl::Poin
 pcl::ModelCoefficients::Ptr ObjectFinder::find(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud) {
 	//const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud = object_model->getInputCloud();
 	// compute and set the normals
-	pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
+	pcl::PointCloud<pcl::Normal>::Ptr input_normals(new pcl::PointCloud<pcl::Normal>);
 	pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> normal_estimator;
 	normal_estimator.setSearchMethod(pcl::search::KdTree<pcl::PointXYZ>::Ptr (new pcl::search::KdTree<pcl::PointXYZ>));
-	//normal_estimator.setRadiusSearch()
+	normal_estimator.setKSearch(10);
 	normal_estimator.setInputCloud(input_cloud);
-	normal_estimator.compute(*normals);
+	normal_estimator.compute(*input_normals);
 	// initialize the algorithm
 	//pcl::RandomSampleConsensus<pcl::Normal> ransac(object_model);
 	pcl::SACSegmentationFromNormals<pcl::PointXYZ, pcl::Normal> seg;
@@ -158,9 +158,9 @@ int main(int argc, char** argv) {
 
 					
 					// tell it to go!
-					pcl::ModelCoefficients coeff = finder.find(cloud_from_disk);
+					pcl::ModelCoefficients::Ptr coeff = finder.find(cloud_from_disk);
 					
-					ROS_INFO("Found a can at %f; %d", coeff->values[0], coeff->size());
+					ROS_INFO("Found a can at %f; %d", coeff->values[0], coeff->values.size());
 				//}
 				break;
 			}
