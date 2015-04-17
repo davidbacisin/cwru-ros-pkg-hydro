@@ -26,7 +26,7 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
 ## Declare a cpp executable
 cs_add_executable(ik_marker_node_1 src/marker_example.cpp)
 cs_add_executable(reachability_from_above_node src/reachability_from_above_node.cpp)
-cs_add_executable(ik_marker_node src/ik_marker_node.cpp)
+cs_add_executable(ik_solution_marker_node src/ik_solution_marker_node.cpp)
 
 # target_link_library(example my_lib)
  
