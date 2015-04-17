@@ -8,6 +8,8 @@
 #include <pcl/point_cloud.h>
 #include <pcl_ros/point_cloud.h>
 #include <pcl/features/normal_3d.h>
+//#include <pcl/PointIndices.h>
+//#include <pcl/ModelCoefficients.h>
 #include <pcl/sample_consensus/ransac.h>
 #include <pcl/sample_consensus/sac_model.h>
 #include <pcl/sample_consensus/sac_model_cylinder.h>
@@ -27,7 +29,7 @@ public:
 
 	std::vector<int> segmentNearHint(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, double radius);
 	void setObjectModel(pcl::SampleConsensusModelFromNormals<pcl::PointXYZ, pcl::Normal>::Ptr& model);
-	Eigen::VectorXf find();
+	pcl::ModelCoefficients::Ptr find(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud);
 	
 	// make public so external functions can use the publisher
 	ros::Publisher pubCloud,

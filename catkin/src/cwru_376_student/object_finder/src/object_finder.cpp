@@ -84,7 +84,7 @@ void ObjectFinder::setObjectModel(pcl::SampleConsensusModelFromNormals<pcl::Poin
 	object_model = model;
 }
 
-Eigen::VectorXf ObjectFinder::find(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud) {
+pcl::ModelCoefficients::Ptr ObjectFinder::find(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud) {
 	//const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud = object_model->getInputCloud();
 	// compute and set the normals
 	pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
@@ -97,28 +97,32 @@ Eigen::VectorXf ObjectFinder::find(const pcl::PointCloud<pcl::PointXYZ>::ConstPt
 	//pcl::RandomSampleConsensus<pcl::Normal> ransac(object_model);
 	pcl::SACSegmentationFromNormals<pcl::PointXYZ, pcl::Normal> seg;
 	// set the maximum allowed distance to the model
-	ransac.setDistanceThreshold(0.01);
-	ransac.setMaxIterations(100);
+	seg.setOptimizeCoefficients(true);
+	seg.setDistanceThreshold(0.01);
+	seg.setMaxIterations(100);
 	seg.setModelType(pcl::SACMODEL_CYLINDER);
 	seg.setMethodType(pcl::SAC_RANSAC);
 	seg.setInputCloud(input_cloud);
 	seg.setInputNormals(input_normals);
 	// go
-	ransac.computeModel();
+	//ransac.computeModel();
+	pcl::PointIndices::Ptr inliers_object(new pcl::PointIndices);
+	pcl::ModelCoefficients::Ptr coefficients_object(new pcl::ModelCoefficients);
+	seg.segment(*inliers_object, *coefficients_object);
 	// return the point cloud
 	std::vector<int> inliers;
-	ransac.getInliers(inliers);
+	//ransac.getInliers(inliers);
 
 	// copy the inliers to a point cloud to display in rviz
-	pcl::PointCloud<pcl::PointXYZ>::Ptr inlier_cloud;
-	pcl::copyPointCloud<pcl::PointXYZ>(*input_cloud, inliers, *inlier_cloud);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr inlier_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::copyPointCloud<pcl::PointXYZ>(*input_cloud, inliers_object->indices, *inlier_cloud);
 	// publish
 	pubCloud.publish(inlier_cloud);
 
 	// return the model coefficients
-	Eigen::VectorXf coeff;
-	ransac.getModelCoefficients(coeff);
-	return coeff;
+	//Eigen::VectorXf coeff;
+	//ransac.getModelCoefficients(coeff);
+	return coefficients_object;
 }
 
 int main(int argc, char** argv) {
@@ -144,20 +148,20 @@ int main(int argc, char** argv) {
 		switch(process_mode) {
 			case FIND_CAN:{
 				// reduce the amount of data
-				std::vector<int> segment_indices = finder.segmentNearHint(cloud_from_disk, 1.0);
+				//std::vector<int> segment_indices = finder.segmentNearHint(cloud_from_disk, 1.0);
 				
-				if (segment_indices.size()){
+				//if (segment_indices.size()){
 					// load the can model
-					pcl::SampleConsensusModelFromNormals<pcl::PointXYZ, pcl::Normal>::Ptr can(new pcl::SampleConsensusModelCylinder<pcl::PointXYZ, pcl::Normal>(cloud_from_disk, segment_indices));
+					//pcl::SampleConsensusModelFromNormals<pcl::PointXYZ, pcl::Normal>::Ptr can(new pcl::SampleConsensusModelCylinder<pcl::PointXYZ, pcl::Normal>(cloud_from_disk, segment_indices));
 
-					finder.setObjectModel(can);
+					//finder.setObjectModel(can);
 
 					
 					// tell it to go!
-					Eigen::VectorXf coeff = finder.find();
+					pcl::ModelCoefficients coeff = finder.find(cloud_from_disk);
 					
-					ROS_INFO("Found a can at (%f, %f, %f)", coeff(0), coeff(1), coeff(2));
-				}
+					ROS_INFO("Found a can at %f; %d", coeff->values[0], coeff->size());
+				//}
 				break;
 			}
 			case IDLE:
