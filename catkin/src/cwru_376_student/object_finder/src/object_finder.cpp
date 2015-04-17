@@ -90,7 +90,7 @@ pcl::ModelCoefficients::Ptr ObjectFinder::find(const pcl::PointCloud<pcl::PointX
 	pcl::PointCloud<pcl::Normal>::Ptr input_normals(new pcl::PointCloud<pcl::Normal>);
 	pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> normal_estimator;
 	normal_estimator.setSearchMethod(pcl::search::KdTree<pcl::PointXYZ>::Ptr (new pcl::search::KdTree<pcl::PointXYZ>));
-	normal_estimator.setKSearch(10);
+	normal_estimator.setKSearch(5);
 	normal_estimator.setInputCloud(input_cloud);
 	normal_estimator.compute(*input_normals);
 	// initialize the algorithm
@@ -101,6 +101,7 @@ pcl::ModelCoefficients::Ptr ObjectFinder::find(const pcl::PointCloud<pcl::PointX
 	seg.setDistanceThreshold(0.01);
 	seg.setMaxIterations(100);
 	seg.setModelType(pcl::SACMODEL_CYLINDER);
+	seg.setRadiusLimits(0.08, 0.09);
 	seg.setMethodType(pcl::SAC_RANSAC);
 	seg.setInputCloud(input_cloud);
 	seg.setInputNormals(input_normals);
@@ -148,19 +149,21 @@ int main(int argc, char** argv) {
 		switch(process_mode) {
 			case FIND_CAN:{
 				// reduce the amount of data
-				//std::vector<int> segment_indices = finder.segmentNearHint(cloud_from_disk, 1.0);
+				//std::vector<int> segment_indices = finder.segmentNearHint(cloud_from_disk, 0.25);
 				
 				//if (segment_indices.size()){
 					// load the can model
 					//pcl::SampleConsensusModelFromNormals<pcl::PointXYZ, pcl::Normal>::Ptr can(new pcl::SampleConsensusModelCylinder<pcl::PointXYZ, pcl::Normal>(cloud_from_disk, segment_indices));
 
 					//finder.setObjectModel(can);
-
+					//pcl::PointCloud<pcl::PointXYZ>::Ptr search_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+					//pcl::copyPointCloud<pcl::PointXYZ>(*cloud_from_disk, segment_indices, *search_cloud);
 					
+					//finder.pubCloud.publish(*search_cloud);
 					// tell it to go!
 					pcl::ModelCoefficients::Ptr coeff = finder.find(cloud_from_disk);
 					
-					ROS_INFO("Found a can at %f; %d", coeff->values[0], coeff->values.size());
+					ROS_INFO("Found a can at (%f, %f, %f) radius %f", coeff->values[0], coeff->values[1], coeff->values[2], coeff->values[6]);
 				//}
 				break;
 			}
