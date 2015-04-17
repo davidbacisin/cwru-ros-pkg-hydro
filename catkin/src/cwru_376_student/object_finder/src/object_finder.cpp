@@ -110,13 +110,13 @@ pcl::ModelCoefficients::Ptr ObjectFinder::findCan(const pcl::PointCloud<pcl::Poi
 	// transform to the appropriate location
   	pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 	Eigen::Affine3f trx = Eigen::Affine3f::Identity();
-	Eigen::Vector3f src = Vector3f::UnitZ(),
+	Eigen::Vector3f src = Eigen::Vector3f::UnitZ(),
 		dest(coeff->values[3], coeff->values[4], coeff->values[5]);
 	dest.normalize();
 	trx.row(0) = (src * dest).normalized();
 	trx.row(1) = (dest * trx.row(0)).normalized();
 	trx.row(2) = dest;
-	trx += Translation3f(coeff->values[0], coeff->values[1], coeff->values[2]);
+	trx += Eigen::Translation3f(coeff->values[0], coeff->values[1], coeff->values[2]);
 	pcl::transformPointCloud(*can_cloud, *transformed_cloud, trx);
 	// metadata
 	transformed_cloud->header = input_cloud->header;
