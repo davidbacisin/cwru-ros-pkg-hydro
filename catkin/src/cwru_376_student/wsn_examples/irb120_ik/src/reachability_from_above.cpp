@@ -38,16 +38,17 @@ int main(int argc, char **argv) {
     Eigen::Affine3d A_fwd_DH = irb120_fwd_solver.fwd_kin_solve(q_in); //fwd_kin_solve
     // rotate DH frame6 to reconcile with URDF frame7:
     //Eigen::Affine3d A_fwd_URDF = A_fwd_DH*a_tool;
-    std::cout << "q_in: " << q_in.transpose() << std::endl;
+    std::cout << "q_in: " << q_in.transpose() << std::endl; // output q_in in row vector
     std::cout << "A rot: " << std::endl;
-    std::cout << A_fwd_DH.linear() << std::endl;
-    std::cout << "A origin: " << A_fwd_DH.translation().transpose() << std::endl;
+    std::cout << A_fwd_DH.linear() << std::endl; // output orientation of A_fwd_DH
+    std::cout << "A origin: " << A_fwd_DH.translation().transpose() << std::endl; // // output orientation of A_fwd_DH in row vector
             
-    int nsolns = ik_solver.ik_solve(A_fwd_DH);
-    std::vector<Vectorq6x1> q6dof_solns;
+    int nsolns = ik_solver.ik_solve(A_fwd_DH); // getting the number of Inverse Kinematics solution
+    std::vector<Vectorq6x1> q6dof_solns; // declaring a Vectorq6x1 vector q6dof_solns to store the IK solution
     Vectorq6x1 qsoln;
     ik_solver.get_solns(q6dof_solns);
     std::cout<<"IK solns: "<<std::endl;
+    // output all the possible IK solutions
     for (int i=0;i<nsolns;i++) {
        std::cout<<(q6dof_solns[i]).transpose();
     }
@@ -67,6 +68,11 @@ int main(int argc, char **argv) {
     std::cout << "====  irb120 kinematics solver ====" << std::endl;
     int ans = 1;
     bool reachable_proposition;
+
+    // this loop works like the following fashion that for a given value of z_des (desired flange position in z dir)
+    // hold this z_des as constant and contiuously changing y_des (desired flange position in y dir), while for each
+    // y_des value, we find the corresponding IK solution. In this process, the x_des (desired flange position in x dir)
+    // always be the same value (a value assigned by user).
     for (double z_des = 0.9; z_des>-0.4; z_des-=0.1) {
         std::cout<<std::endl;
         std::cout<<"z="<< round(z_des*10)<<"  ";

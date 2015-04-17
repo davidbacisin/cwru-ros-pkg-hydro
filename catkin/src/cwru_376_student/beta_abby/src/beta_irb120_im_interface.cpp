@@ -274,23 +274,30 @@ void BetaInterfaceClass::moveABBY () {
             if (nsolns>0) {      
                 ik_solver.get_solns(q6dof_solns);  
                 //qvec = q6dof_solns[0];
-                std::vector<int> weight{6,5,4,3,2,1}; //defining a weight vector
+                // defining a joint limits vector for joint 0 and joint 1, such that each joint is specified within a range of motion
+                std::vector<double> jointLimits {0,-M_PI,-M_PI/2,M_PI/6};
+                std::vector<int> weight{1,2,3,3,2,1}; //defining a weight vector
                 double sum;
                 double minimum = 1e6;
-                int ikSoluNo = 0;
+                int bestikSoluNo = 0;
                 Vectorq6x1 oneIkSolu;
+                // Once nsolns > 0, choose a IK solution both meet  the specified joint limit and the weight requirement
                 for (int i = 0; i < q6dof_solns.size(); ++i){
                     oneIkSolu = q6dof_solns[i];
-                    sum = 0;
-                    for (int ijnt = 0; ijnt < 6; ++ijnt){
-                        sum = sum + oneIkSolu[ijnt] * weight[ijnt];
-                    }
-                    if (sum < minimum){
-                        minimum = sum;
-                        ikSoluNo = i; // remember the IK solution which has the minimum last joint angle solution
+                    if (oneIkSolu[0] < jointLimits[0] && oneIkSolu[0] > jointLimits[1] 
+                        && oneIkSolu[1] < jointLimits[3] && oneIkSolu[1] > jointLimits[2]) {
+                        sum = 0;
+                        for (int ijnt = 0; ijnt < 6; ++ijnt){
+                            sum = sum + oneIkSolu[ijnt] * weight[ijnt];
+                        }
+                        if (sum < minimum){
+                            minimum = sum;
+                            bestikSoluNo = i; // remember the IK solution which has the minimum last joint angle solution
+                        }
                     }
                 }
-                qvec = q6dof_solns[ikSoluNo];
+                qvec = q6dof_solns[bestikSoluNo];
+
                 stuff_trajectory(qvec,new_trajectory);
 
                 pub_.publish(new_trajectory);
