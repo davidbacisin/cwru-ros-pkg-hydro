@@ -17,7 +17,8 @@ catkin_simple()
 # find_package(Boost REQUIRED COMPONENTS system thread)
 
 # C++0x support - not quite the same as final C++11!
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
+# need to specify no SSE because Eigen/GCC will generate invalid assembly instruction. :(
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -mno-sse")
 
 # Libraries
 # cs_add_libraries(my_lib src/my_lib.cpp)   

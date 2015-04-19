@@ -1,5 +1,7 @@
 #include "object_finder.h"
 
+#define CAN_HEIGHT	0.3
+
 // track the current process mode
 ProcessMode process_mode = IDLE;
 
@@ -53,7 +55,7 @@ Eigen::Vector3f ObjectFinder::computeCentroid(const pcl::PointCloud<pcl::PointXY
 	centroid << 0, 0, 0; // initialize
 
 	int size = cloud->width * cloud->height;
-	for (size_t i=0; i < size; i++) {
+	for (int i=0; i < size; i++) {
 		centroid += cloud->points[i].getVector3fMap();
 	}
 	if (size > 0) {
@@ -61,6 +63,20 @@ Eigen::Vector3f ObjectFinder::computeCentroid(const pcl::PointCloud<pcl::PointXY
 	}
 	return centroid;
 }
+Eigen::Vector3f ObjectFinder::computeCentroid(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr cloud, std::vector<int> indices) {
+    Eigen::Vector3f centroid;
+    centroid << 0, 0, 0;
+
+    int size = indices.size();
+    for (int i = 0; i < size; i++) {
+        centroid += cloud->points[indices[i]].getVector3fMap();
+    }
+    if (size > 0) {
+        centroid /= ((float) size);
+    }
+    return centroid;
+}
+
 
 
 std::vector<int> ObjectFinder::segmentNearHint(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, double radius) {
@@ -84,7 +100,8 @@ pcl::ModelCoefficients::Ptr ObjectFinder::findCan(const pcl::PointCloud<pcl::Poi
 	seg.setModelType(pcl::SACMODEL_CYLINDER);
 	seg.setRadiusLimits(0.08, 0.09);
 
-	pcl::ModelCoefficients::Ptr coeff = find(input_cloud);
+	Eigen::Vector3f inlier_centroid;
+	pcl::ModelCoefficients::Ptr coeff = find(input_cloud, &inlier_centroid);
 
 	// create a point cloud to display as the can
 	double theta,h;
@@ -98,29 +115,34 @@ pcl::ModelCoefficients::Ptr ObjectFinder::findCan(const pcl::PointCloud<pcl::Poi
 	// resize the cloud
 	can_cloud->points.resize(npts);
 	// add the points
-	for (i = 0, theta = 0; theta < 2.0*M_PI;i++, theta += 0.3) {
-		for (h=0; h < h_can; h+= 0.01) {
+	for (i = 0, theta = 0; theta < 2.0*M_PI; theta += 0.3) {
+		for (h=0; h < CAN_HEIGHT; i++, h += 0.01) {
 			// radius = coeff->values[6]
 			pt[0] = coeff->values[6] * cos(theta);
 			pt[1] = coeff->values[6] * sin(theta);
-			pt[2] = h;
+			pt[2] = h - CAN_HEIGHT/2.0;
 			can_cloud->points[i].getVector3fMap() = pt;
 		}
 	}
 	// transform to the appropriate location
   	pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-	Eigen::Affine3f trx = Eigen::Affine3f::Identity();
+	Eigen::Matrix3f trx;
 	Eigen::Vector3f src = Eigen::Vector3f::UnitZ(),
 		dest(coeff->values[3], coeff->values[4], coeff->values[5]);
 	dest.normalize();
-	trx.row(0) = (src * dest).normalized();
-	trx.row(1) = (dest * trx.row(0)).normalized();
+	trx.row(0) = src.cross(dest).normalized();
+	trx.row(1) = dest.cross(trx.row(0)).normalized();
 	trx.row(2) = dest;
-	trx += Eigen::Translation3f(coeff->values[0], coeff->values[1], coeff->values[2]);
-	pcl::transformPointCloud(*can_cloud, *transformed_cloud, trx);
+	// the coefficients will get us on the same axis of the cylinder, but not necessarily matching position along cylinder
+	Eigen::Vector3f can_position(coeff->values[0] , coeff->values[1], coeff->values[2]);
+	// shift the can along the axis to the correct position
+	can_position += (can_position.dot(dest) - inlier_centroid.dot(dest)) * Eigen::Vector3f::UnitZ();
+	Eigen::Affine3f atrx(trx);
+	atrx.translate(-can_position);
+	pcl::transformPointCloud(*can_cloud, *transformed_cloud, atrx);
 	// metadata
 	transformed_cloud->header = input_cloud->header;
-	transformed_cloud->header.stamp = ros::Time::now();
+	transformed_cloud->header.stamp = ros::Time::now().toSec();
 	transformed_cloud->is_dense = true;
 	transformed_cloud->width = npts;
 	transformed_cloud->height = 1;
@@ -130,7 +152,7 @@ pcl::ModelCoefficients::Ptr ObjectFinder::findCan(const pcl::PointCloud<pcl::Poi
 	return coeff;
 }
 
-pcl::ModelCoefficients::Ptr ObjectFinder::find(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud) {
+pcl::ModelCoefficients::Ptr ObjectFinder::find(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud, Eigen::Vector3f *centroid) {
 	pcl::PointCloud<pcl::Normal>::Ptr input_normals(new pcl::PointCloud<pcl::Normal>);
 	pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> normal_estimator;
 	pcl::PointIndices::Ptr inliers_object(new pcl::PointIndices);
@@ -150,6 +172,10 @@ pcl::ModelCoefficients::Ptr ObjectFinder::find(const pcl::PointCloud<pcl::PointX
 	seg.setInputNormals(input_normals);
 	// go
 	seg.segment(*inliers_object, *coefficients_object);
+
+	if (centroid) {
+		*centroid = computeCentroid(input_cloud, inliers_object->indices);
+	}
 
 	return coefficients_object;
 }
