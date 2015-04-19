@@ -48,7 +48,7 @@ int main(int argc, char **argv) {
     point.z = 0.0;
 
     // header for time/frame information
-    ikSoluMarker.header.frame_id = "/base_link"; //base_link"; // select the reference frame 
+    ikSoluMarker.header.frame_id = "/link1"; //base_link"; // select the reference frame 
     ikSoluMarker.header.stamp = ros::Time();
     // Namespace to place this object in... used in conjunction with id to create a unique name for the object  
     ikSoluMarker.ns = "my_namespace";
@@ -85,7 +85,7 @@ int main(int argc, char **argv) {
     ikSoluMarker.points.clear();
     // read in a fil
     std::ifstream inFile;
-    inFile.open("/home/sulu/ros_workspace/cwru-ros-pkg-hydro-beta/catkin/src/cwru_376_student/ik_marker/mktPtPos.txt");
+    inFile.open("mktPtPos.txt");
     // check error for opening a file to read
     // if (inFile.fail()) {
     //     std::cerr << "Error Opening File" << std::endl;

@@ -92,7 +92,7 @@ int main(int argc, char **argv) {
         // output a File 
         std::ofstream outputFile;
         // std::ios::trunc If the file is opened for output operations and it already existed, its previous content is deleted and replaced by the new one.
-        outputFile.open("/home/sulu/ros_workspace/cwru-ros-pkg-hydro-beta/catkin/src/cwru_376_student/ik_marker/mktPtPos.txt");
+        outputFile.open("mktPtPos.txt");
         for (double x_des = -0.4; x_des < 0.7; x_des += 0.1) {
             std::cout << std::endl;
             std::cout << "x=" << x_des <<"  ";
