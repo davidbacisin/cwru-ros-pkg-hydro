@@ -132,13 +132,15 @@ pcl::ModelCoefficients::Ptr ObjectFinder::findCan(const pcl::PointCloud<pcl::Poi
 	Eigen::Affine3f trx = Eigen::Affine3f::Identity();
 	
 	// the coefficients will get us on the same axis of the cylinder, but not necessarily matching position along cylinder
-	Eigen::Vector3f can_position(coeff->values[0] , coeff->values[1], coeff->values[2]);
+	Eigen::Vector3f can_position(coeff->values[0] , coeff->values[1], coeff->values[2]),
+		can_axis(-coeff->values[3], -coeff->values[4], -coeff->values[5]);
 	// shift the can along the axis to the correct position
 	//can_position += (can_position.dot(dest) - inlier_centroid.dot(dest)) * Eigen::Vector3f::UnitZ();
 	trx.translate(can_position);
 	
 	// rotate to proper orientation
-	Eigen::Quaternionf rotator(Eigen::Vector3f::UnitZ(), dest(-coeff->values[3], -coeff->values[4], -coeff->values[5]));
+	Eigen::Quaternionf rotator;
+	rotator.setFromTwoVectors(Eigen::Vector3f::UnitZ(), can_axis);
 	trx.rotate(rotator);
 
 	pcl::transformPointCloud(*can_cloud, *transformed_cloud, trx);
