@@ -11,6 +11,8 @@
 #include <std_msgs/Int16.h>
 #include <fstream>
 #include <tf/transform_listener.h>
+#include <tf/transform_broadcaster.h>
+
 //#include <std_msgs/Int16MultiArray>
 
 // define some global scope variable
@@ -29,28 +31,6 @@ geometry_msgs::PoseStamped g_desToolflange_pose_wrt_base_link;
 
 
 Eigen::Vector3d tfLink1toBaselink (geometry_msgs::Point P_des, Eigen::Matrix3d R_des) {
-
-// wait to start receiving valid tf transforms between map and odom:
-//tf::StampedTransform g_armlink1_wrt_baseLink(g_desToolflange_pose_in,ros::Time::now(),"base_link","link1") ;
-
-    // bool tferr=true;
-    // ROS_INFO("waiting for tf between base_link and link1 of arm...");
-    // while (tferr) {
-    //     tferr=false;
-    //     try {
-    //         //try to lookup transform from target frame "odom" to source frame "map"
-    //         //The direction of the transform returned will be from the target_frame to the source_frame. 
-    //         //Which if applied to data, will transform data in the source_frame into the target_frame. See tf/CoordinateFrameConventions#Transform_Direction
-    //         //void tf::TransformListener::lookupTransform (const std::string &target_frame, const std::string &source_frame, const ros::Time &time, StampedTransform &transform) const 
-    //             g_tfListener->lookupTransform("base_link", "link1", ros::Time(0), g_armlink1_wrt_baseLink);
-    //         } catch(tf::TransformException &exception) {
-    //             ROS_ERROR("%s", exception.what());
-    //             tferr=true;
-    //             ros::Duration(0.5).sleep(); // sleep for half a second
-    //             ros::spinOnce();                
-    //         }   
-    // }
-    // ROS_INFO("tf is good");
 
     Eigen::Quaterniond q(R_des); // transform rotation matrix to quaternion format
     g_desToolflange_pose_in.header.seq = 1;
@@ -89,7 +69,6 @@ int main(int argc, char **argv) {
     ros::init(argc, argv, "irb120_reachability");
     
     g_tfListener = new tf::TransformListener;  //create a transform listener
-    tf::StampedTransform g_armlink1_wrt_baseLink(g_desToolflange_pose_in,ros::Time::now(),"base_link","link1") ;
     // wait to start receiving valid tf transforms between map and odom:
 
     bool tferr=true;
@@ -110,8 +89,7 @@ int main(int argc, char **argv) {
             }   
     }
     ROS_INFO("tf is good");
-    from now on, tfListener will keep track of transforms
-
+    
     // create a variable of type "Point" to publish the desired point for manipulator's tool flange to move
     geometry_msgs::Point desPt;
     desPt.x = 0.0;
