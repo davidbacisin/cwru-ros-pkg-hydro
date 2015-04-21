@@ -1,0 +1,19 @@
+change ethernet to router
+
+0) do irc5 start-up
+
+
+1) roscore
+2) roslaunch industrial_robot_client robot_interface_download.launch robot_ip:=192.168.0.50
+  (make sure ABB pendant acknowledges both ROS_StateServer and ROS_MotionServer connections)
+3) roslaunch cwru_urdf abby_w_arm_rviz.launch
+
+then run a ROS node to command joint angles, e.g.:
+4a) rosrun example_robot_interface test_abby_sender2
+
+for use with interactive marker:
+4b)rosrun example_interactive_marker IM_6dof_example2
+5b) rosrun example_irb120_im_interface example_irb120_IM_interface_v2
+5c)  move interactive marker, then: rosservice call move_trigger 1 
+
+
