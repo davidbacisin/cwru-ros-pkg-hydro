@@ -34,12 +34,14 @@ void ObjectFinder::initializeServices() {
 
 void ObjectFinder::selectCB(const sensor_msgs::PointCloud2ConstPtr& cloud) {
 	pcl::fromROSMsg(*cloud, *pcl_select);
-	ROS_INFO("RECEIVED NEW PATCH w/  %d * %d points", pcl_select->width, pcl_select->height);
 	//ROS_INFO("frame id is: %s",cloud->header.frame_id);
 	int npts = pcl_select->width * pcl_select->height;
 	
 	// compute and save the centroid
 	hint_point = computeCentroid(pcl_select);
+
+	ROS_INFO("Received new patch with centroid at (%f, %f, %f)", hint_point.x(), hint_point.y(), hint_point.z());
+
 	hint_initialized = true;
 }
 
@@ -126,20 +128,22 @@ pcl::ModelCoefficients::Ptr ObjectFinder::findCan(const pcl::PointCloud<pcl::Poi
 	}
 	// transform to the appropriate location
   	pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-	Eigen::Matrix3f trx;
+	Eigen::Matrix3f rotator;
 	Eigen::Vector3f src = Eigen::Vector3f::UnitZ(),
-		dest(coeff->values[3], coeff->values[4], coeff->values[5]);
+		dest(-coeff->values[3], -coeff->values[4], -coeff->values[5]);
 	dest.normalize();
-	trx.row(0) = src.cross(dest).normalized();
-	trx.row(1) = dest.cross(trx.row(0)).normalized();
-	trx.row(2) = dest;
 	// the coefficients will get us on the same axis of the cylinder, but not necessarily matching position along cylinder
 	Eigen::Vector3f can_position(coeff->values[0] , coeff->values[1], coeff->values[2]);
 	// shift the can along the axis to the correct position
-	can_position += (can_position.dot(dest) - inlier_centroid.dot(dest)) * Eigen::Vector3f::UnitZ();
-	Eigen::Affine3f atrx(trx);
-	atrx.translate(-can_position);
-	pcl::transformPointCloud(*can_cloud, *transformed_cloud, atrx);
+	//can_position += (can_position.dot(dest) - inlier_centroid.dot(dest)) * Eigen::Vector3f::UnitZ();
+	Eigen::Affine3f trx = Eigen::Affine3f::Identity();
+	trx.translate(can_position);
+
+	rotator.row(0) = src.cross(dest).normalized();
+	rotator.row(1) = dest.cross(rotator.row(0)).normalized();
+	rotator.row(2) = dest;
+	//trx = trx * rotator.matrix();
+	pcl::transformPointCloud(*can_cloud, *transformed_cloud, trx);
 	// metadata
 	transformed_cloud->header = input_cloud->header;
 	transformed_cloud->header.stamp = ros::Time::now().toSec();
@@ -159,14 +163,14 @@ pcl::ModelCoefficients::Ptr ObjectFinder::find(const pcl::PointCloud<pcl::PointX
 	pcl::ModelCoefficients::Ptr coefficients_object(new pcl::ModelCoefficients);
 	// compute the normals
 	normal_estimator.setSearchMethod(pcl::search::KdTree<pcl::PointXYZ>::Ptr (new pcl::search::KdTree<pcl::PointXYZ>));
-	normal_estimator.setKSearch(5);
+	normal_estimator.setKSearch(10);
 	normal_estimator.setInputCloud(input_cloud);
 	normal_estimator.compute(*input_normals);
 	// initialize the algorithm
 	seg.setOptimizeCoefficients(true);
 	seg.setDistanceThreshold(0.01);
-	seg.setMaxIterations(100);
-	seg.setMethodType(pcl::SAC_RANSAC);
+	seg.setMaxIterations(1000);
+	seg.setMethodType(pcl::SAC_PROSAC);
 	// set the data
 	seg.setInputCloud(input_cloud);
 	seg.setInputNormals(input_normals);
@@ -198,7 +202,7 @@ int main(int argc, char** argv) {
 	cloud_from_disk->header.frame_id = "world";
 
 	ObjectFinder finder(nh);
-	pcl::PointCloud<pcl::PointXYZ>::Ptr search_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr search_cloud = cloud_from_disk;
 	// whether or not to use the search cloud instead of the live stream
 	bool use_search_cloud = false;
 
@@ -219,12 +223,14 @@ int main(int argc, char** argv) {
 			case FIND_CAN:{
 				// make sure we have data
 				if (!use_search_cloud){
+					ROS_INFO("No search cloud specified; using original cloud");
 					search_cloud = (pcl::PointCloud<pcl::PointXYZ>::Ptr) cloud_from_disk;
 				}
 				
 				pcl::ModelCoefficients::Ptr coeff = finder.findCan(search_cloud);
 					
-				ROS_INFO("Found a can at (%f, %f, %f) radius %f", coeff->values[0], coeff->values[1], coeff->values[2], coeff->values[6]);
+				ROS_INFO("Found a can at (%f, %f, %f) angle (%f, %f, %f) with radius %f", coeff->values[0], coeff->values[1], coeff->values[2],
+					coeff->values[3], coeff->values[4], coeff->values[5], coeff->values[6]);
 				// reset state variables
 				use_search_cloud = false;
 				process_mode = IDLE;
@@ -235,7 +241,7 @@ int main(int argc, char** argv) {
 				break;
 		}
 		
-		finder.pubPcdCloud.publish(*cloud_from_disk);
+		finder.pubPcdCloud.publish(*search_cloud);
 
 		ros::spinOnce();
 		ros::Duration(0.5).sleep();
