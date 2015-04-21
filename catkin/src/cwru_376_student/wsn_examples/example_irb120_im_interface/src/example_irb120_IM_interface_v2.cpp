@@ -193,9 +193,10 @@ int main(int argc, char** argv) {
     while (tferr) {
         tferr=false;
         try {
-                //try to lookup transform from target frame "odom" to source frame "map"
+            //try to lookup transform from target frame "odom" to source frame "map"
             //The direction of the transform returned will be from the target_frame to the source_frame. 
-             //Which if applied to data, will transform data in the source_frame into the target_frame. See tf/CoordinateFrameConventions#Transform_Direction
+            //Which if applied to data, will transform data in the source_frame into the target_frame. See tf/CoordinateFrameConventions#Transform_Direction
+            //void tf::TransformListener::lookupTransform (const std::string &target_frame, const std::string &source_frame, const ros::Time &time, StampedTransform &transform) const 
                 g_tfListener->lookupTransform("base_link", "link1", ros::Time(0), g_armlink1_wrt_baseLink);
             } catch(tf::TransformException &exception) {
                 ROS_ERROR("%s", exception.what());
