@@ -120,8 +120,8 @@ void AbbyPathPlanner::initializeInteractiveMarker() {
     im_translate_y.orientation.w = 1;
 
     // add the controls to the interactive marker
-    im.controls.push_back(translate_control_x);    
-    im.controls.push_back(translate_control_y);
+    im.controls.push_back(im_translate_x);    
+    im.controls.push_back(im_translate_y);
     
     /** Scale Down: this makes all of the arrows/disks for the user controls smaller than the default size */
     im.scale = 0.2;

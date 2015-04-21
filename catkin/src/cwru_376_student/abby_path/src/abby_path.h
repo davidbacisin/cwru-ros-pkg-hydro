@@ -1,13 +1,14 @@
 // path_planner.h
-#ifndef PATH_PLANNER_H_
-#define PATH_PLANNER_H_
+#ifndef _ABBY_PATH_H_
+#define _ABBY_PATH_H_
 
 #include <ros/ros.h>
 #include <tf/transform_listener.h>
 #include <nav_msgs/Odometry.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PointStamped.h>
-#include <path_planner/path_segment.h> // the service message class
+#include <abby_path/path_segment.h> // the service message class
+#include <interactive_markers/interactive_marker_server.h>
 #include <cwru_srv/simple_int_service_message.h>
 #include <math.h>
 #include <vector>
