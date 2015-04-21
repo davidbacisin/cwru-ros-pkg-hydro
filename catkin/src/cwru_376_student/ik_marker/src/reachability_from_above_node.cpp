@@ -26,15 +26,15 @@ tf::TransformListener* g_tfListener;
 tf::StampedTransform g_armlink1_wrt_baseLink;
 geometry_msgs::PoseStamped g_desToolflange_pose_in;
 geometry_msgs::PoseStamped g_desToolflange_pose_wrt_base_link;
+geometry_msgs::Point Pdes;
 
 
 
-
-Eigen::Vector3d tfLink1toBaselink (geometry_msgs::Point P_des, Eigen::Matrix3d R_des) {
+geometry_msgs::Point tfLink1toBaselink (geometry_msgs::Point P_des, Eigen::Matrix3d R_des) {
 
     Eigen::Quaterniond q(R_des); // transform rotation matrix to quaternion format
     g_desToolflange_pose_in.header.seq = 1;
-    g_desToolflange_pose_in.header.stamp = ros::Time::now();
+    g_desToolflange_pose_in.header.stamp = ros::Time(0);
     g_desToolflange_pose_in.header.frame_id = "link1";
     g_desToolflange_pose_in.pose.position.x = P_des.x;
     g_desToolflange_pose_in.pose.position.y = P_des.y;
@@ -44,9 +44,9 @@ Eigen::Vector3d tfLink1toBaselink (geometry_msgs::Point P_des, Eigen::Matrix3d R
     g_desToolflange_pose_in.pose.orientation.z = q.z();
     g_desToolflange_pose_in.pose.orientation.w = q.w();
 
-    g_desToolflange_pose_wrt_base_link.header.seq = 1;
-    g_desToolflange_pose_wrt_base_link.header.stamp = ros::Time::now();
-    g_desToolflange_pose_wrt_base_link.header.frame_id = "base_link";
+    // g_desToolflange_pose_wrt_base_link.header.seq = 1;
+    // g_desToolflange_pose_wrt_base_link.header.stamp = ros::Time::now();
+    // g_desToolflange_pose_wrt_base_link.header.frame_id = "base_link";
     // taking transformation: convert g_desToolflange_pose_in expressed in "link1" frame into 
     // g_desToolflange_pose_wrt_base_link expressed in "base_link" frame.
     g_tfListener->transformPose("base_link", g_desToolflange_pose_in, g_desToolflange_pose_wrt_base_link);
@@ -61,8 +61,12 @@ Eigen::Vector3d tfLink1toBaselink (geometry_msgs::Point P_des, Eigen::Matrix3d R
     // g_R = g_quat.matrix();  
     // g_A_flange_desired.translation() = g_p;
     // g_A_flange_desired.linear() = g_R;
+    Pdes.x = g_p[0];
+    Pdes.y = g_p[1];
+    Pdes.z = g_p[2];
 
-    return g_p;
+
+    return Pdes;
 }
 
 int main(int argc, char **argv) {
@@ -115,7 +119,7 @@ int main(int argc, char **argv) {
     R_des.col(2) = b_des;
     
     std::vector<Vectorq6x1> q6dof_solns;
-    Eigen::Vector3d reachablePtWrtBaseLink;
+    geometry_msgs::Point reachablePtWrtBaseLink;
     Eigen::Affine3d a_tool_des; // expressed in DH frame
     
     a_tool_des.linear() = R_des; // never change

@@ -263,7 +263,7 @@ int main(int argc, char** argv) {
 	g_tf = new tf::TransformListener(nh);
 	while (!tf_is_initialized) {
 		try {
-			g_tf->lookupTransform("link1", "base_link", ros::Time(0), baseLink_wrt_link1);
+			g_tf->lookupTransform("base_link", "link1", ros::Time(0), baseLink_wrt_link1);
 			tf_is_initialized = true;
 		}
 		catch (tf::TransformException& exception) {
