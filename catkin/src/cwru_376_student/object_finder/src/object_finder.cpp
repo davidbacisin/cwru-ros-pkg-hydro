@@ -126,30 +126,30 @@ pcl::ModelCoefficients::Ptr ObjectFinder::findCan(const pcl::PointCloud<pcl::Poi
 			can_cloud->points[i].getVector3fMap() = pt;
 		}
 	}
+	
 	// transform to the appropriate location
   	pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-	Eigen::Matrix3f rotator;
-	Eigen::Vector3f src = Eigen::Vector3f::UnitZ(),
-		dest(-coeff->values[3], -coeff->values[4], -coeff->values[5]);
-	dest.normalize();
+	Eigen::Affine3f trx = Eigen::Affine3f::Identity();
+	
 	// the coefficients will get us on the same axis of the cylinder, but not necessarily matching position along cylinder
 	Eigen::Vector3f can_position(coeff->values[0] , coeff->values[1], coeff->values[2]);
 	// shift the can along the axis to the correct position
 	//can_position += (can_position.dot(dest) - inlier_centroid.dot(dest)) * Eigen::Vector3f::UnitZ();
-	Eigen::Affine3f trx = Eigen::Affine3f::Identity();
 	trx.translate(can_position);
+	
+	// rotate to proper orientation
+	Eigen::Quaternionf rotator(Eigen::Vector3f::UnitZ(), dest(-coeff->values[3], -coeff->values[4], -coeff->values[5]));
+	trx.rotate(rotator);
 
-	rotator.row(0) = src.cross(dest).normalized();
-	rotator.row(1) = dest.cross(rotator.row(0)).normalized();
-	rotator.row(2) = dest;
-	//trx = trx * rotator.matrix();
 	pcl::transformPointCloud(*can_cloud, *transformed_cloud, trx);
+	
 	// metadata
 	transformed_cloud->header = input_cloud->header;
 	transformed_cloud->header.stamp = ros::Time::now().toSec();
 	transformed_cloud->is_dense = true;
 	transformed_cloud->width = npts;
 	transformed_cloud->height = 1;
+	
 	// publish
 	pubCloud.publish(transformed_cloud);
 
