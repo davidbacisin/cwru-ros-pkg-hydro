@@ -44,9 +44,6 @@ geometry_msgs::Point tfLink1toBaselink (geometry_msgs::Point P_des, Eigen::Matri
     g_desToolflange_pose_in.pose.orientation.z = q.z();
     g_desToolflange_pose_in.pose.orientation.w = q.w();
 
-    // g_desToolflange_pose_wrt_base_link.header.seq = 1;
-    // g_desToolflange_pose_wrt_base_link.header.stamp = ros::Time::now();
-    // g_desToolflange_pose_wrt_base_link.header.frame_id = "base_link";
     // taking transformation: convert g_desToolflange_pose_in expressed in "link1" frame into 
     // g_desToolflange_pose_wrt_base_link expressed in "base_link" frame.
     g_tfListener->transformPose("base_link", g_desToolflange_pose_in, g_desToolflange_pose_wrt_base_link);
@@ -58,9 +55,7 @@ geometry_msgs::Point tfLink1toBaselink (geometry_msgs::Point P_des, Eigen::Matri
     g_quat.y() = g_desToolflange_pose_wrt_base_link.pose.orientation.y;
     g_quat.z() = g_desToolflange_pose_wrt_base_link.pose.orientation.z;
     g_quat.w() = g_desToolflange_pose_wrt_base_link.pose.orientation.w;   
-    // g_R = g_quat.matrix();  
-    // g_A_flange_desired.translation() = g_p;
-    // g_A_flange_desired.linear() = g_R;
+
     Pdes.x = g_p[0];
     Pdes.y = g_p[1];
     Pdes.z = g_p[2];
@@ -156,7 +151,7 @@ int main(int argc, char **argv) {
                     ik_solver.get_solns(q6dof_solns);
                     // defining a joint limits vector for joint 0 and joint 1, such that each joint is specified within a range of motion
                     std::vector<double> jointLimits {0,-M_PI,-M_PI/2,M_PI/6}; 
-                    std::vector<int> weight{1,2,3,3,2,1}; //defining a weight vector
+                    std::vector<int> weight{1,1,1,7,5,1}; //defining a weight vector
                     double sum;
                     double minimum = 1e6;
                     std_msgs::Int16 bestIkSoluNo;
