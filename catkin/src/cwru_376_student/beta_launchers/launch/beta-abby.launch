@@ -1,0 +1,27 @@
+ <launch>
+ 
+	<param name="odom_topic" value="/odom" type="str" />
+
+	<!-- Launch Abby base file -->
+
+	<!-- Launch Lidar nodes. Should be same as jinx -->
+	<include file="$(find lidar)/launch/lidar-jinx.launch" />
+
+	<!-- Launch Velocity Scheduler -->
+	<node name="vel_scheduler" pkg="vel_scheduler" type="vel_scheduler" respawn="false">
+		<param name="max_linear_velocity" type="double" value="0.5" />
+		<param name="max_linear_acceleration" type="double" value="0.125" />
+		<param name="max_angular_velocity" type="double" value="0.25" />
+		<param name="max_angular_acceleration" type="double" value="0.05" />
+		<param name="cmd_vel_topic" type="str" value="/cmd_vel" />
+		<param name="cmd_vel_stamped_topic" type="str" value="/cmd_vel_stamped" />
+	</node>
+
+	<!-- Launch Abby Path Planner -->
+	<node name="abby_path" pkg="abby_path" type="abby_path" respawn="true" />
+
+	<!-- Launch Object Finder -->
+
+	<!-- Launch IRB120 arm controller -->
+
+</launch>
