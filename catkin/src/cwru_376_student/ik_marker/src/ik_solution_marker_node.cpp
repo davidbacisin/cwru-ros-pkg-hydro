@@ -85,7 +85,7 @@ int main(int argc, char **argv) {
     ikSoluMarker.points.clear();
     // read in a fil
     std::ifstream inFile;
-    inFile.open("mktPtPos.txt");
+    inFile.open("reachableMktPtPos.txt");
     // check error for opening a file to read
     // if (inFile.fail()) {
     //     std::cerr << "Error Opening File" << std::endl;

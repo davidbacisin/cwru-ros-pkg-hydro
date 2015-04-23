@@ -109,9 +109,14 @@ int main(int argc, char **argv) {
     Irb120_IK_solver ik_solver;
 
     // we should keep the tool flange as this orientation
-    b_des<<1,0,0;
-    t_des<<0,1,0;
-    n_des = t_des.cross(b_des);
+    // b_des<<0,0,1;
+    // t_des<<0,1,0;
+    // n_des = t_des.cross(b_des);
+    n_des << 1,0,0;
+    t_des << 0,1,0;
+    b_des = n_des.cross(t_des);
+
+
     
     Eigen::Matrix3d R_des;
     R_des.col(0) = n_des;
@@ -125,10 +130,14 @@ int main(int argc, char **argv) {
     a_tool_des.linear() = R_des; // never change
     std::cout << "====  irb120 kinematics solver ====" << std::endl;
 
+    bool should_track_empty;
     // output a File 
-    std::ofstream outputFile;
+    std::ofstream outputFile1;
+    std::ofstream outputFile2;
+
     // std::ios::trunc If the file is opened for output operations and it already existed, its previous content is deleted and replaced by the new one.
-    outputFile.open("mktPtPos.txt");
+    outputFile1.open("reachableMktPtPos.txt");
+    outputFile2.open("unreachableMktPtPos.txt");
     for (double x_des = -0.4; x_des < 0.7; x_des += 0.1) {
         std::cout << std::endl;
         std::cout << "x=" << x_des <<"  ";
@@ -146,6 +155,14 @@ int main(int argc, char **argv) {
                 //std_msgs::Int16 iknsolns; // create a variable of type "Int16" to publish the number of IK solution
                 //iknsolns.data = nsolns;
                 std::cout<<nsolns;
+
+                if (nsolns > 0 && nsolns_previous > 0){
+                    should_track_empty = false;
+                }
+                else if (nsolns == 0 && nsolns_previous > 0){
+                    should_track_empty = true;
+                }
+
 
                 // Only when nsolns > 0, it is meaningful to publish the corresponding desired tool point as a topic: reachablePt
                 if (nsolns>0) {
@@ -176,18 +193,26 @@ int main(int argc, char **argv) {
                             }
                         }   
                     }
-
-
                     reachablePtWrtBaseLink = tfLink1toBaselink(desPt, R_des);
-                    outputFile << reachablePtWrtBaseLink << std::endl;
+                    outputFile1 << reachablePtWrtBaseLink << std::endl;
                 }
+                else if (should_track_empty) {
+                    desPt.x = x_des; // remember the desired value of x coordiate and and assign to desPt.x
+                    desPt.y = y_des; // remember the desired value of y coordiate and and assign to desPt.y
+                    desPt.z = z_des; // remember the desired value of z coordiate and and assign to desPt.z
+                    unreachablePtWrtBaseLink = tfLink1toBaselink(desPt, R_des);
+                    outputFile2 << unreachablePtWrtBaseLink << std::endl;
+                }
+
+
             }
         }
     }
     // for (int i = 0; i < reachPtVec.size(); ++i) {
     //     ROS_INFO("Reachable Point Coordinates: X = %f, Y= %f, Z = %f", reachPtVec[&i].x ,reachPtVec[&i].y, reachPtVec[&i].z);
     // }
-    outputFile.close();
+    outputFile1.close();
+    outputFile2.close();
     // timer.sleep();
     // }
     return 0;
