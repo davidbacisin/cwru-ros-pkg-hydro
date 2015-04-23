@@ -292,7 +292,7 @@ int main(int argc, char** argv) {
                 //qvec = q6dof_solns[0];
                 // defining a joint limits vector for joint 0 and joint 1, such that each joint is specified within a range of motion
                 std::vector<double> jointLimits {0,-M_PI,-M_PI/2,M_PI/6};                
-                std::vector<int> weight{1,2,3,3,2,1}; //defining a weight vector
+                std::vector<int> weight{1,1,1,7,5,1}; //defining a weight vector
                 double sum;
                 double minimum = 1e6;
                 int bestikSoluNo = 0;

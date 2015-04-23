@@ -120,12 +120,18 @@ int main(int argc, char **argv) {
     
     std::vector<Vectorq6x1> q6dof_solns;
     geometry_msgs::Point reachablePtWrtBaseLink;
+    geometry_msgs::Point unreachablePtWrtBaseLink;
     Eigen::Affine3d a_tool_des; // expressed in DH frame
     
     a_tool_des.linear() = R_des; // never change
     std::cout << "====  irb120 kinematics solver ====" << std::endl;
 
-    bool should_track_empty;
+    bool should_track_empty = false;
+    std::vector<geometry_msgs::Point> good_spaces;
+    std::vector<geometry_msgs::Point> temp;
+    std::vector<geometry_msgs::Point> empty_spaces;
+    geometry_msgs::Point zeroSoluPt;
+    int nsolns_previous = 0;
     // output a File 
     std::ofstream outputFile1;
     std::ofstream outputFile2;
@@ -147,15 +153,20 @@ int main(int argc, char **argv) {
                 desPt.z = z_des;*/
                 a_tool_des.translation() = p;
                 int nsolns = ik_solver.ik_solve(a_tool_des);
+                nsolns_previous = nsolns;
                 //std_msgs::Int16 iknsolns; // create a variable of type "Int16" to publish the number of IK solution
                 //iknsolns.data = nsolns;
                 std::cout<<nsolns;
 
-                if (nsolns > 0 && nsolns_previous > 0){
-                    should_track_empty = false;
-                }
-                else if (nsolns == 0 && nsolns_previous > 0){
+                if (nsolns == 0 && nsolns_previous > 0){
+                    temp.clear();
                     should_track_empty = true;
+                }
+                else if (nsolns > 0 && nsolns_previous == 0){
+                    for (int i = 0; i < temp.size(); ++ i) {
+                        outputFile2 << temp[i] << std::endl;
+                    }
+                    should_track_empty = false;
                 }
 
 
@@ -192,13 +203,12 @@ int main(int argc, char **argv) {
                     outputFile1 << reachablePtWrtBaseLink << std::endl;
                 }
                 else if (should_track_empty) {
-                    desPt.x = x_des; // remember the desired value of x coordiate and and assign to desPt.x
-                    desPt.y = y_des; // remember the desired value of y coordiate and and assign to desPt.y
-                    desPt.z = z_des; // remember the desired value of z coordiate and and assign to desPt.z
-                    unreachablePtWrtBaseLink = tfLink1toBaselink(desPt, R_des);
-                    outputFile2 << unreachablePtWrtBaseLink << std::endl;
+                    zeroSoluPt.x = x_des; // remember the desired value of x coordiate and and assign to zeroSoluPt.x
+                    zeroSoluPt.y = y_des; // remember the desired value of y coordiate and and assign to zeroSoluPt.y
+                    zeroSoluPt.z = z_des; // remember the desired value of z coordiate and and assign to zeroSoluPt.z
+                    unreachablePtWrtBaseLink = tfLink1toBaselink(zeroSoluPt, R_des);
+                    temp.push_back(unreachablePtWrtBaseLink);
                 }
-
 
             }
         }
