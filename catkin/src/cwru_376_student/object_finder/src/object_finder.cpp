@@ -9,6 +9,9 @@ ObjectFinder::ObjectFinder(ros::NodeHandle nh): nh(nh) {
 	hint_initialized = false;
 	pcl_select = (pcl::PointCloud<pcl::PointXYZ>::Ptr) new pcl::PointCloud<pcl::PointXYZ>;
 
+	kinect_initialized = false;
+	pcl_kinect = (pcl::PointCloud<pcl::PointXYZ>::Ptr) new pcl::PointCloud<pcl::PointXYZ>;
+
 	initializeSubscribers();
 	initializePublishers();
 	initializeServices();
@@ -16,7 +19,7 @@ ObjectFinder::ObjectFinder(ros::NodeHandle nh): nh(nh) {
 
 void ObjectFinder::initializeSubscribers() {
 	// for live stream from Kinect
-	// pclPoints = nh.subscribe<sensor_msgs::PointCloud2>("/kinect/depth/points", 1, &ObjectFinder::kinectCB, this);
+	pclPoints = nh.subscribe<sensor_msgs::PointCloud2>("/kinect/depth/points", 1, &ObjectFinder::kinectCB, this);
 
 	// the selected points from rviz
 	selectedPoints = nh.subscribe<sensor_msgs::PointCloud2>("/selected_points", 1, &ObjectFinder::selectCB, this);
@@ -43,6 +46,12 @@ void ObjectFinder::selectCB(const sensor_msgs::PointCloud2ConstPtr& cloud) {
 	ROS_INFO("Received new patch with centroid at (%f, %f, %f)", hint_point.x(), hint_point.y(), hint_point.z());
 
 	hint_initialized = true;
+}
+
+void ObjectFinder::kinectCB(const sensor_msgs::PointCloud2ConstPtr& cloud) {
+	pcl::fromROSMsg(*cloud, *pcl_kinect);
+	ROS_INFO("Received data from kinect");
+	kinect_initialized = true;
 }
 
 bool ObjectFinder::modeCB(cwru_srv::simple_int_service_messageRequest& request, cwru_srv::simple_int_service_messageResponse& response) {
@@ -135,7 +144,7 @@ pcl::ModelCoefficients::Ptr ObjectFinder::findCan(const pcl::PointCloud<pcl::Poi
 	Eigen::Vector3f can_position(coeff->values[0] , coeff->values[1], coeff->values[2]),
 		can_axis(-coeff->values[3], -coeff->values[4], -coeff->values[5]);
 	// shift the can along the axis to the correct position
-	//can_position += (can_position.dot(dest) - inlier_centroid.dot(dest)) * Eigen::Vector3f::UnitZ();
+	can_position += (can_position.dot(can_axis) - inlier_centroid.dot(can_axis)) * Eigen::Vector3f::UnitZ();
 	trx.translate(can_position);
 	
 	// rotate to proper orientation
@@ -147,6 +156,7 @@ pcl::ModelCoefficients::Ptr ObjectFinder::findCan(const pcl::PointCloud<pcl::Poi
 	
 	// metadata
 	transformed_cloud->header = input_cloud->header;
+	transformed_cloud->header.frame_id = "base_link";
 	transformed_cloud->header.stamp = ros::Time::now().toSec();
 	transformed_cloud->is_dense = true;
 	transformed_cloud->width = npts;
@@ -192,19 +202,21 @@ int main(int argc, char** argv) {
 
 	ROS_INFO("Starting object_finder");
 
-	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_from_disk(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr original_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
 	// load a point cloud from file
-	if (pcl::io::loadPCDFile<pcl::PointXYZ> ("test_pcd.pcd", *cloud_from_disk) == -1) { 
+	/*
+	if (pcl::io::loadPCDFile<pcl::PointXYZ> ("test_pcd.pcd", *original_cloud) == -1) { 
 		PCL_ERROR("Couldn't read file test_pcd.pcd \n");
 		return (-1);
 	}
-	ROS_INFO("Loaded %d data points from test_pcd.pcd", cloud_from_disk->width * cloud_from_disk->height);
+	ROS_INFO("Loaded %d data points from test_pcd.pcd", original_cloud->width * original_cloud->height);
 	// set the cloud reference frame
-	cloud_from_disk->header.frame_id = "world";
+	original_cloud->header.frame_id = "world";
+	*/
 
 	ObjectFinder finder(nh);
-	pcl::PointCloud<pcl::PointXYZ>::Ptr search_cloud = cloud_from_disk;
+	pcl::PointCloud<pcl::PointXYZ>::Ptr search_cloud = original_cloud;
 	// whether or not to use the search cloud instead of the live stream
 	bool use_search_cloud = false;
 
@@ -212,10 +224,10 @@ int main(int argc, char** argv) {
 		switch(process_mode) {
 			case HINT: {
 				// reduce the amount of data to near the hint
-				std::vector<int> segment_indices = finder.segmentNearHint(cloud_from_disk, 0.25);
+				std::vector<int> segment_indices = finder.segmentNearHint(original_cloud, 0.25);
 				// will be zero if the hint point was not specified
 				if (segment_indices.size()){
-					pcl::copyPointCloud<pcl::PointXYZ>(*cloud_from_disk, segment_indices, *search_cloud);
+					pcl::copyPointCloud<pcl::PointXYZ>(*original_cloud, segment_indices, *search_cloud);
 					use_search_cloud = true;
 				}
 				// reset state variables
@@ -226,7 +238,7 @@ int main(int argc, char** argv) {
 				// make sure we have data
 				if (!use_search_cloud){
 					ROS_INFO("No search cloud specified; using original cloud");
-					search_cloud = (pcl::PointCloud<pcl::PointXYZ>::Ptr) cloud_from_disk;
+					search_cloud = (pcl::PointCloud<pcl::PointXYZ>::Ptr) original_cloud;
 				}
 				
 				pcl::ModelCoefficients::Ptr coeff = finder.findCan(search_cloud);
@@ -239,6 +251,9 @@ int main(int argc, char** argv) {
 				break;
 			}
 			case IDLE:
+				if (finder.kinect_initialized)
+					original_cloud = finder.pcl_kinect;
+				break;
 			default:
 				break;
 		}

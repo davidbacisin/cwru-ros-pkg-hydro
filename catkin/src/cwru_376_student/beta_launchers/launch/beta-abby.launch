@@ -3,6 +3,7 @@
 	<param name="odom_topic" value="/odom" type="str" />
 
 	<!-- Launch Abby base file -->
+	<include file="$(find cwru_base)/launch/start_base.launch" />
 
 	<!-- Launch Lidar nodes. Should be same as jinx -->
 	<include file="$(find lidar)/launch/lidar-jinx.launch" />
@@ -21,6 +22,7 @@
 	<node name="abby_path" pkg="abby_path" type="abby_path" respawn="true" />
 
 	<!-- Launch Object Finder -->
+	<node name="object_finder" pkg="object_finder" type="object_finder" respawn="true">
 
 	<!-- Launch IRB120 arm controller -->
 

@@ -35,6 +35,8 @@ public:
 	// make public so external functions can use the publisher
 	ros::Publisher pubCloud,
 		pubPcdCloud;	
+	pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_kinect;
+	bool kinect_initialized;
 private:
 	ros::NodeHandle nh;
 	Eigen::Vector3f hint_point;
