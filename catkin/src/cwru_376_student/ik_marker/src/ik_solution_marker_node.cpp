@@ -34,7 +34,7 @@ int main(int argc, char **argv) {
     ros::init(argc, argv, "ik_solu_marker_placer");
     ros::NodeHandle nh;
     //ROS_INFO("hello, world");
-    ros::Rate timer(25); //timer to run at 10 Hz
+    ros::Rate timer(1); //timer to run at 10 Hz
     //two subscribers
     // ros::Subscriber rechPtSub = nh.subscribe("reachablePt",1,reachPtCallback);
     // ros::Subscriber btIkNumSub = nh.subscribe("bestIkSoluNum",1,bestIkSoluNumCallback);
@@ -107,14 +107,17 @@ int main(int argc, char **argv) {
                 case 'z':
                     point.z = std::stod(line.substr(3));
                     ikSoluMarker.points.push_back(point);
-                    ROS_INFO("publishing Maker Point...");
-                    vis_pub.publish(ikSoluMarker);
-                    timer.sleep();
                     break;
             }
         }
         inFile.close(); // always need this after reading in all data
     }
     else std::cout << "Unable to open file";
+    while(ros::ok()) {
+        ROS_INFO("publishing Maker Point...");
+        vis_pub.publish(ikSoluMarker);
+        timer.sleep();
+    }
+    
     return 0;
 }
