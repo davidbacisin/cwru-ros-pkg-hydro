@@ -1,6 +1,6 @@
 #include "object_finder.h"
 
-#define CAN_HEIGHT	0.3
+#define CAN_HEIGHT	0.25
 
 // track the current process mode
 ProcessMode process_mode = IDLE;
@@ -144,7 +144,9 @@ pcl::ModelCoefficients::Ptr ObjectFinder::findCan(const pcl::PointCloud<pcl::Poi
 	Eigen::Vector3f can_position(coeff->values[0] , coeff->values[1], coeff->values[2]),
 		can_axis(-coeff->values[3], -coeff->values[4], -coeff->values[5]);
 	// shift the can along the axis to the correct position
-	//can_position += (can_position.dot(can_axis) - inlier_centroid.dot(can_axis)) * Eigen::Vector3f::UnitZ();
+	float diff = (can_position.dot(can_axis) - inlier_centroid.dot(can_axis));
+	ROS_INFO("Diff: %f", diff);
+	can_position -= (can_position.dot(can_axis) - inlier_centroid.dot(can_axis)) * can_axis;
 	trx.translate(can_position);
 	
 	// rotate to proper orientation
