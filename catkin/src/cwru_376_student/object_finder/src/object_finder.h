@@ -22,7 +22,8 @@
 enum ProcessMode {
 	IDLE 		= 0,
 	FIND_CAN 	= 1,
-	HINT 		= 2	
+	HINT 		= 2,
+	UPDATE_VISION = 3
 };
 
 class ObjectFinder {
