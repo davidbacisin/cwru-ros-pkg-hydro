@@ -1,6 +1,6 @@
 #include "object_finder.h"
 
-#define CAN_HEIGHT	0.25
+#define CAN_HEIGHT	0.127
 
 // track the current process mode
 ProcessMode process_mode = IDLE;
@@ -12,6 +12,8 @@ ObjectFinder::ObjectFinder(ros::NodeHandle nh): nh(nh) {
 	kinect_initialized = false;
 	pcl_kinect = (pcl::PointCloud<pcl::PointXYZ>::Ptr) new pcl::PointCloud<pcl::PointXYZ>;
 
+	vertical_initialized = false;
+
 	initializeSubscribers();
 	initializePublishers();
 	initializeServices();
@@ -19,7 +21,7 @@ ObjectFinder::ObjectFinder(ros::NodeHandle nh): nh(nh) {
 
 void ObjectFinder::initializeSubscribers() {
 	// for live stream from Kinect
-	pclPoints = nh.subscribe<sensor_msgs::PointCloud2>("/kinect/depth/points", 1, &ObjectFinder::kinectCB, this);
+	pclPoints = nh.subscribe<sensor_msgs::PointCloud2>("/camera/depth/points", 1, &ObjectFinder::kinectCB, this);
 
 	// the selected points from rviz
 	selectedPoints = nh.subscribe<sensor_msgs::PointCloud2>("/selected_points", 1, &ObjectFinder::selectCB, this);
@@ -109,7 +111,9 @@ std::vector<int> ObjectFinder::segmentNearHint(const pcl::PointCloud<pcl::PointX
 pcl::ModelCoefficients::Ptr ObjectFinder::findCan(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud) {
 	// tell the segmenter what to find	
 	seg.setModelType(pcl::SACMODEL_CYLINDER);
-	seg.setRadiusLimits(0.02, 0.09);
+	seg.setRadiusLimits(0.031, 0.035);
+	if (vertical_initialized)
+		seg.setAxis(vertical_axis);
 
 	Eigen::Vector3f inlier_centroid;
 	pcl::ModelCoefficients::Ptr coeff = find(input_cloud, &inlier_centroid);
@@ -144,8 +148,8 @@ pcl::ModelCoefficients::Ptr ObjectFinder::findCan(const pcl::PointCloud<pcl::Poi
 	Eigen::Vector3f can_position(coeff->values[0] , coeff->values[1], coeff->values[2]),
 		can_axis(-coeff->values[3], -coeff->values[4], -coeff->values[5]);
 	// shift the can along the axis to the correct position
-	float diff = (can_position.dot(can_axis) - inlier_centroid.dot(can_axis));
-	ROS_INFO("Diff: %f", diff);
+	//float diff = (can_position.dot(can_axis) - inlier_centroid.dot(can_axis));
+	//ROS_INFO("Diff: %f", diff);
 	can_position -= (can_position.dot(can_axis) - inlier_centroid.dot(can_axis)) * can_axis;
 	trx.translate(can_position);
 	
@@ -158,7 +162,7 @@ pcl::ModelCoefficients::Ptr ObjectFinder::findCan(const pcl::PointCloud<pcl::Poi
 	
 	// metadata
 	transformed_cloud->header = input_cloud->header;
-	transformed_cloud->header.frame_id = "kinect_pc_frame";
+	transformed_cloud->header.frame_id = "camera_depth_optical_frame";
 	transformed_cloud->header.stamp = ros::Time::now().toSec() * 1e6;
 	transformed_cloud->is_dense = true;
 	transformed_cloud->width = npts;
@@ -170,6 +174,70 @@ pcl::ModelCoefficients::Ptr ObjectFinder::findCan(const pcl::PointCloud<pcl::Poi
 	return coeff;
 }
 
+pcl::ModelCoefficients::Ptr ObjectFinder::findTable(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud) {
+	// tell the segmenter what to find	
+	seg.setModelType(pcl::SACMODEL_PLANE);
+	//seg.setAxis(Eigen::Vector3f::UnitZ());
+
+	Eigen::Vector3f inlier_centroid;
+	pcl::ModelCoefficients::Ptr coeff = find(input_cloud, &inlier_centroid);
+
+	// create a point cloud to display as the table
+	float x, y;
+	int i, npts = 100;
+    	Eigen::Vector3f pt;
+	pcl::PointCloud<pcl::PointXYZ>::Ptr table_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+	// resize the cloud
+	table_cloud->points.resize(npts);
+	// add the points
+	for (i = 0, x = -0.5; x < 0.5; x += 0.1) {
+		for (y = -0.5; y < 0.5; i++, y += 0.1 ) {
+			pt[0] = x;
+			pt[1] = y;
+			pt[2] = 0.0;
+			table_cloud->points[i].getVector3fMap() = pt;
+		}
+	}
+	
+	// transform to the appropriate location
+  	pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+	Eigen::Affine3f trx = Eigen::Affine3f::Identity();
+	
+	// the coefficients will get us on the same axis of the cylinder, but not necessarily matching position along cylinder
+	Eigen::Vector3f table_position(inlier_centroid),
+		table_axis(-coeff->values[0], -coeff->values[1], -coeff->values[2]);
+	// shift the can along the axis to the correct position
+	//float diff = (table_position.dot(table_axis) - inlier_centroid.dot(table_axis));
+	//ROS_INFO("Diff: %f", diff);
+	//can_position -= (can_position.dot(table_axis) - inlier_centroid.dot(table_axis)) * table_axis;
+	trx.translate(table_position);
+	
+	// rotate to proper orientation
+	Eigen::Quaternionf rotator;
+	rotator.setFromTwoVectors(Eigen::Vector3f::UnitZ(), table_axis);
+	trx.rotate(rotator);
+
+	pcl::transformPointCloud(*table_cloud, *transformed_cloud, trx);
+
+	// remember the vertical axis of the world
+	vertical_axis = table_axis;
+	vertical_initialized = true;
+	
+	// metadata
+	transformed_cloud->header = input_cloud->header;
+	transformed_cloud->header.frame_id = "camera_depth_optical_frame";
+	transformed_cloud->header.stamp = ros::Time::now().toSec() * 1e6;
+	transformed_cloud->is_dense = true;
+	transformed_cloud->width = npts;
+	transformed_cloud->height = 1;
+	
+	// publish
+	pubCloud.publish(transformed_cloud);
+
+	return coeff;
+}
+
+
 pcl::ModelCoefficients::Ptr ObjectFinder::find(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud, Eigen::Vector3f *centroid) {
 	pcl::PointCloud<pcl::Normal>::Ptr input_normals(new pcl::PointCloud<pcl::Normal>);
 	pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> normal_estimator;
@@ -177,14 +245,14 @@ pcl::ModelCoefficients::Ptr ObjectFinder::find(const pcl::PointCloud<pcl::PointX
 	pcl::ModelCoefficients::Ptr coefficients_object(new pcl::ModelCoefficients);
 	// compute the normals
 	normal_estimator.setSearchMethod(pcl::search::KdTree<pcl::PointXYZ>::Ptr (new pcl::search::KdTree<pcl::PointXYZ>));
-	normal_estimator.setKSearch(10);
+	normal_estimator.setKSearch(50);
 	normal_estimator.setInputCloud(input_cloud);
 	normal_estimator.compute(*input_normals);
 	// initialize the algorithm
 	seg.setOptimizeCoefficients(true);
 	seg.setDistanceThreshold(0.01);
 	seg.setMaxIterations(1000);
-	seg.setMethodType(pcl::SAC_RANSAC);
+	seg.setMethodType(pcl::SAC_PROSAC);
 	// set the data
 	seg.setInputCloud(input_cloud);
 	seg.setInputNormals(input_normals);
@@ -226,7 +294,7 @@ int main(int argc, char** argv) {
 		switch(process_mode) {
 			case HINT: {
 				// reduce the amount of data to near the hint
-				std::vector<int> segment_indices = finder.segmentNearHint(original_cloud, 0.25);
+				std::vector<int> segment_indices = finder.segmentNearHint(original_cloud, 0.1);
 				// will be zero if the hint point was not specified
 				if (segment_indices.size()){
 					search_cloud->clear();
@@ -249,6 +317,21 @@ int main(int argc, char** argv) {
 					
 				ROS_INFO("Found a can at (%f, %f, %f) angle (%f, %f, %f) with radius %f", coeff->values[0], coeff->values[1], coeff->values[2],
 					coeff->values[3], coeff->values[4], coeff->values[5], coeff->values[6]);
+				// reset state variables
+				use_search_cloud = false;
+				process_mode = IDLE;
+				break;
+			}
+			case FIND_TABLE:{
+				// make sure we have data
+				if (!use_search_cloud){
+					ROS_INFO("No search cloud specified; using original cloud");
+					pcl::copyPointCloud<pcl::PointXYZ>(*original_cloud, *search_cloud);
+				}
+				
+				pcl::ModelCoefficients::Ptr coeff = finder.findTable(search_cloud);
+					
+				ROS_INFO("Found a table with orientation (%f, %f, %f)", coeff->values[0], coeff->values[1], coeff->values[2]);
 				// reset state variables
 				use_search_cloud = false;
 				process_mode = IDLE;

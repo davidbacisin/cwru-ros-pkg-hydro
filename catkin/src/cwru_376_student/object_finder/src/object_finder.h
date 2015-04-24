@@ -23,7 +23,8 @@ enum ProcessMode {
 	IDLE 		= 0,
 	FIND_CAN 	= 1,
 	HINT 		= 2,
-	UPDATE_VISION = 3
+	UPDATE_VISION	= 3,
+	FIND_TABLE	= 4
 };
 
 class ObjectFinder {
@@ -32,6 +33,7 @@ public:
 
 	std::vector<int> segmentNearHint(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, double radius);
 	pcl::ModelCoefficients::Ptr findCan(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud);
+	pcl::ModelCoefficients::Ptr findTable(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud);
 	
 	// make public so external functions can use the publisher
 	ros::Publisher pubCloud,
@@ -40,8 +42,10 @@ public:
 	bool kinect_initialized;
 private:
 	ros::NodeHandle nh;
-	Eigen::Vector3f hint_point;
-	bool hint_initialized;
+	Eigen::Vector3f hint_point,
+		vertical_axis;
+	bool hint_initialized,
+		vertical_initialized;
 	pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_select;
 	pcl::SACSegmentationFromNormals<pcl::PointXYZ, pcl::Normal> seg;
 
