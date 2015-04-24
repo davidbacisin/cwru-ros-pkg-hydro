@@ -140,12 +140,16 @@ int main(int argc, char **argv) {
     outputFile1.open("reachableMktPtPos.txt");
     outputFile2.open("unreachableMktPtPos.txt");
     for (double x_des = -0.4; x_des < 0.7; x_des += 0.1) {
+        should_track_empty = false;
+        temp.clear();
         std::cout << std::endl;
         std::cout << "x=" << x_des <<"  ";
         for (double z_des = 0.9; z_des >- 0.4; z_des -= 0.1) {
+            should_track_empty = false;
+            temp.clear();
             std::cout << std::endl;
             std::cout << "z=" << round(z_des*10) << "  ";
-           for (double y_des =- 1.0; y_des < 1.0; y_des += 0.05) {
+            for (double y_des =- 1.0; y_des < 1.0; y_des += 0.05) {
                 p[0] = x_des;
                 p[1]= y_des;
                 p[2] = z_des;
@@ -153,18 +157,21 @@ int main(int argc, char **argv) {
                 desPt.z = z_des;*/
                 a_tool_des.translation() = p;
                 int nsolns = ik_solver.ik_solve(a_tool_des);
-                nsolns_previous = nsolns;
+                
                 //std_msgs::Int16 iknsolns; // create a variable of type "Int16" to publish the number of IK solution
                 //iknsolns.data = nsolns;
                 std::cout<<nsolns;
-
-                if (nsolns == 0 && nsolns_previous > 0){
+                // std::cout << "I got nsolns" << std::endl;
+                if (nsolns == 0 && nsolns_previous > 0) {
+                    // std::cout << "I am here" << std::endl;
                     temp.clear();
                     should_track_empty = true;
                 }
-                else if (nsolns > 0 && nsolns_previous == 0){
+                else if (nsolns > 0 && nsolns_previous == 0) {
+                    // std::cout << "hellooooooooooooooooooooooo";
                     for (int i = 0; i < temp.size(); ++ i) {
                         outputFile2 << temp[i] << std::endl;
+                        // ROS_INFO("temp size", temp.size());
                     }
                     should_track_empty = false;
                 }
@@ -209,7 +216,7 @@ int main(int argc, char **argv) {
                     unreachablePtWrtBaseLink = tfLink1toBaselink(zeroSoluPt, R_des);
                     temp.push_back(unreachablePtWrtBaseLink);
                 }
-
+                nsolns_previous = nsolns;
             }
         }
     }
