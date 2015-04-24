@@ -174,6 +174,71 @@ pcl::ModelCoefficients::Ptr ObjectFinder::findCan(const pcl::PointCloud<pcl::Poi
 	return coeff;
 }
 
+void ObjectFinder::findCan2(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud) {
+	// construct a point cloud can model with normals
+	pcl::PointCloud<pcl::PointXYZ> can_cloud;
+	pcl::PointCloud<pcl::Normal> can_normals;
+
+	double theta,h;
+	int i, npts = 0;
+    	Eigen::Vector3f pt, ptn;
+	// count the points
+	for (theta = 0; theta < 2.0*M_PI; theta += 0.3)
+		for (h = 0; h < CAN_HEIGHT; h += 0.01)  
+			npts++;
+	// resize the cloud
+	can_cloud.points.resize(npts);
+	// add the points
+	for (i = 0, theta = 0; theta < 2.0*M_PI; theta += 0.3) {
+		for (h=0; h < CAN_HEIGHT; i++, h += 0.01) {
+			// radius = coeff->values[6]
+			ptn[0] = pt[0] = CAN_RADIUS * cos(theta);
+			ptn[1] = pt[1] = CAN_RADIUS * sin(theta);
+			pt[2] = h - CAN_HEIGHT/2.0;
+			ptn[2] = 0.0; // normal z should be zero
+			can_cloud.points[i].getVector3fMap() = pt;
+			can_normals.points[i].getVector3fMap() = ptn;
+		}
+	}
+
+	// set that model
+	pcl::ObjRecRANSAC recognizer(0.1, 0.01);
+	recognizer.addModel(can_cloud, can_normals, "can");
+
+	// compute input normals
+	pcl::PointCloud<pcl::Normal>::Ptr input_normals(new pcl::PointCloud<pcl::Normal>);
+	pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> normal_estimator;
+	pcl::PointIndices::Ptr inliers_object(new pcl::PointIndices);
+	pcl::ModelCoefficients::Ptr coefficients_object(new pcl::ModelCoefficients);
+	// compute the normals
+	normal_estimator.setSearchMethod(pcl::search::KdTree<pcl::PointXYZ>::Ptr (new pcl::search::KdTree<pcl::PointXYZ>));
+	normal_estimator.setKSearch(50);
+	normal_estimator.setInputCloud(input_cloud);
+	normal_estimator.compute(*input_normals);
+
+	// recognize
+	std::list<pcl::ObjRecRANSAC::Output> recognized_objects;
+	recognizer.recognize(*input_cloud, *input_normals, recognized_objects, 0.99);
+
+	// set transform matrix
+	Eigen::Affine3f trx(recognized_objects[0].rigid_transform_);
+
+	// transform to the appropriate location
+  	pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::transformPointCloud(can_cloud, *transformed_cloud, trx);
+	
+	// metadata
+	transformed_cloud->header = input_cloud->header;
+	transformed_cloud->header.frame_id = "camera_depth_optical_frame";
+	transformed_cloud->header.stamp = ros::Time::now().toSec() * 1e6;
+	transformed_cloud->is_dense = true;
+	transformed_cloud->width = npts;
+	transformed_cloud->height = 1;
+	
+	// publish
+	pubCloud.publish(transformed_cloud);
+}
+
 pcl::ModelCoefficients::Ptr ObjectFinder::findTable(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud) {
 	// tell the segmenter what to find	
 	seg.setModelType(pcl::SACMODEL_PLANE);
@@ -320,6 +385,9 @@ int main(int argc, char** argv) {
 				// reset state variables
 				use_search_cloud = false;
 				process_mode = IDLE;
+				break;
+			}
+			case FIND_CAN2:{
 				break;
 			}
 			case FIND_TABLE:{

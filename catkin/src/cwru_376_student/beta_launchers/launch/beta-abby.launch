@@ -19,10 +19,9 @@
 	</node>
 
 	<!-- Launch Abby Path Planner -->
-	<node name="abby_path" pkg="abby_path" type="abby_path" respawn="true" />
 
 	<!-- Launch Object Finder -->
-	<node name="object_finder" pkg="object_finder" type="object_finder" respawn="true">
+	<node name="object_finder" pkg="object_finder" type="object_finder" respawn="true" />
 
 	<!-- Launch IRB120 arm controller -->
 

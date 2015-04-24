@@ -46,6 +46,7 @@
 <build_depend>pcl_conversions</build_depend>
 <build_depend>pcl_kdtree</build_depend>
 <build_depend>pcl_sample_consensus</build_depend>
+<build_depend>pcl_recognition</build_depend>
 <build_depend>std_msgs</build_depend>
 <build_depend>sensor_msgs/PointCloud2</build_depend>
 <build_depend>cwru_srv</build_depend>
@@ -56,6 +57,7 @@
 <run_depend>pcl_conversions</run_depend>
 <run_depend>pcl_kdtree</run_depend>
 <run_depend>pcl_sample_consensus</run_depend>
+<run_depend>pcl_recognition</run_depend>
 <run_depend>std_msgs</run_depend>
 <run_depend>sensor_msgs/PointCloud2</run_depend>
 <run_depend>cwru_srv</run_depend>

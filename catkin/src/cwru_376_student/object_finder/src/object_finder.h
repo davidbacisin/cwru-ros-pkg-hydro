@@ -14,6 +14,7 @@
 #include <pcl/sample_consensus/sac_model_cylinder.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/kdtree/kdtree_flann.h>
+#include <pcl/recognition/ransac_based/obj_rec_ransac.h>
 
 #include <cwru_srv/simple_int_service_message.h> // for the process mode service
 #include <Eigen/Eigen>
@@ -24,7 +25,8 @@ enum ProcessMode {
 	FIND_CAN 	= 1,
 	HINT 		= 2,
 	UPDATE_VISION	= 3,
-	FIND_TABLE	= 4
+	FIND_TABLE	= 4,
+	FIND_CAN2	= 5
 };
 
 class ObjectFinder {
@@ -33,6 +35,7 @@ public:
 
 	std::vector<int> segmentNearHint(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, double radius);
 	pcl::ModelCoefficients::Ptr findCan(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud);
+	void findCan2(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud);
 	pcl::ModelCoefficients::Ptr findTable(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud);
 	
 	// make public so external functions can use the publisher
