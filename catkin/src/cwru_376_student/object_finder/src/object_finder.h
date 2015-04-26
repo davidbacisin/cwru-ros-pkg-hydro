@@ -3,11 +3,14 @@
 
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h> 
+#include <tf/transform_listener.h>
 #include <pcl_ros/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/common/transforms.h>
+#include <pcl/filters/passthrough.h>
+#include <pcl/filters/extract_indices.h>
 #include <pcl/features/normal_3d.h>
 #include <pcl/sample_consensus/ransac.h>
 #include <pcl/sample_consensus/sac_model.h>
@@ -33,15 +36,17 @@ class ObjectFinder {
 public:
 	ObjectFinder(ros::NodeHandle);
 
+	pcl::PointCloud<pcl::PointXYZ> getCanCloud(float radius, float height);
+
 	std::vector<int> segmentNearHint(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, double radius);
 	pcl::ModelCoefficients::Ptr findCan(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud);
-	void findCan2(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud);
 	pcl::ModelCoefficients::Ptr findTable(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud);
 	
 	// make public so external functions can use the publisher
 	ros::Publisher pubCloud,
 		pubPcdCloud;	
 	pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_kinect;
+	sensor_msgs::PointCloud2ConstPtr kinect_raw;
 	bool kinect_initialized;
 private:
 	ros::NodeHandle nh;

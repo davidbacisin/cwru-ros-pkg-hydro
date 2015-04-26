@@ -1,6 +1,7 @@
 #include "object_finder.h"
 
 #define CAN_HEIGHT	0.127
+#define CAN_RADIUS	0.035
 
 // track the current process mode
 ProcessMode process_mode = IDLE;
@@ -51,6 +52,7 @@ void ObjectFinder::selectCB(const sensor_msgs::PointCloud2ConstPtr& cloud) {
 }
 
 void ObjectFinder::kinectCB(const sensor_msgs::PointCloud2ConstPtr& cloud) {
+	kinect_raw = cloud;
 	pcl::fromROSMsg(*cloud, *pcl_kinect);
 	// ROS_INFO("Received data from kinect");
 	kinect_initialized = true;
@@ -91,6 +93,35 @@ Eigen::Vector3f ObjectFinder::computeCentroid(const pcl::PointCloud<pcl::PointXY
 }
 
 
+pcl::PointCloud<pcl::PointXYZ> getCanCloud(float radius, float height) {
+	double theta, h;
+	int i, npts = 0;
+    	Eigen::Vector3f pt;
+	pcl::PointCloud<pcl::PointXYZ>::Ptr can_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+	// count the points
+	for (theta = 0; theta < 2.0*M_PI; theta += 0.3)
+		for (h = 0; h < CAN_HEIGHT; h += 0.01)  
+			npts++;
+	// resize the cloud
+	can_cloud->points.resize(npts);
+	// add the points
+	for (i = 0, theta = 0; theta < 2.0*M_PI; theta += 0.3) {
+		for (h=0; h < height; i++, h += 0.01) {
+			// radius = coeff->values[6]
+			pt[0] = radius * cos(theta);
+			pt[1] = radius * sin(theta);
+			pt[2] = h;
+			can_cloud->points[i].getVector3fMap() = pt;
+		}
+	}
+
+	// metadata
+	can_cloud->is_dense = true;
+	can_cloud->width = npts;
+	can_cloud->height = 1;
+	
+	return can_cloud;
+}
 
 std::vector<int> ObjectFinder::segmentNearHint(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, double radius) {
 	std::vector<int> indices(0);
@@ -112,8 +143,11 @@ pcl::ModelCoefficients::Ptr ObjectFinder::findCan(const pcl::PointCloud<pcl::Poi
 	// tell the segmenter what to find	
 	seg.setModelType(pcl::SACMODEL_CYLINDER);
 	seg.setRadiusLimits(0.031, 0.035);
-	if (vertical_initialized)
+	seg.setSamplesMaxDist(0.2);
+	if (vertical_initialized) {
 		seg.setAxis(vertical_axis);
+		seg.setEpsAngle(0.001); // really small angle
+	}
 
 	Eigen::Vector3f inlier_centroid;
 	pcl::ModelCoefficients::Ptr coeff = find(input_cloud, &inlier_centroid);
@@ -172,71 +206,6 @@ pcl::ModelCoefficients::Ptr ObjectFinder::findCan(const pcl::PointCloud<pcl::Poi
 	pubCloud.publish(transformed_cloud);
 
 	return coeff;
-}
-
-void ObjectFinder::findCan2(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud) {
-	// construct a point cloud can model with normals
-	pcl::PointCloud<pcl::PointXYZ> can_cloud;
-	pcl::PointCloud<pcl::Normal> can_normals;
-
-	double theta,h;
-	int i, npts = 0;
-    	Eigen::Vector3f pt, ptn;
-	// count the points
-	for (theta = 0; theta < 2.0*M_PI; theta += 0.3)
-		for (h = 0; h < CAN_HEIGHT; h += 0.01)  
-			npts++;
-	// resize the cloud
-	can_cloud.points.resize(npts);
-	// add the points
-	for (i = 0, theta = 0; theta < 2.0*M_PI; theta += 0.3) {
-		for (h=0; h < CAN_HEIGHT; i++, h += 0.01) {
-			// radius = coeff->values[6]
-			ptn[0] = pt[0] = CAN_RADIUS * cos(theta);
-			ptn[1] = pt[1] = CAN_RADIUS * sin(theta);
-			pt[2] = h - CAN_HEIGHT/2.0;
-			ptn[2] = 0.0; // normal z should be zero
-			can_cloud.points[i].getVector3fMap() = pt;
-			can_normals.points[i].getVector3fMap() = ptn;
-		}
-	}
-
-	// set that model
-	pcl::ObjRecRANSAC recognizer(0.1, 0.01);
-	recognizer.addModel(can_cloud, can_normals, "can");
-
-	// compute input normals
-	pcl::PointCloud<pcl::Normal>::Ptr input_normals(new pcl::PointCloud<pcl::Normal>);
-	pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> normal_estimator;
-	pcl::PointIndices::Ptr inliers_object(new pcl::PointIndices);
-	pcl::ModelCoefficients::Ptr coefficients_object(new pcl::ModelCoefficients);
-	// compute the normals
-	normal_estimator.setSearchMethod(pcl::search::KdTree<pcl::PointXYZ>::Ptr (new pcl::search::KdTree<pcl::PointXYZ>));
-	normal_estimator.setKSearch(50);
-	normal_estimator.setInputCloud(input_cloud);
-	normal_estimator.compute(*input_normals);
-
-	// recognize
-	std::list<pcl::ObjRecRANSAC::Output> recognized_objects;
-	recognizer.recognize(*input_cloud, *input_normals, recognized_objects, 0.99);
-
-	// set transform matrix
-	Eigen::Affine3f trx(recognized_objects[0].rigid_transform_);
-
-	// transform to the appropriate location
-  	pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-	pcl::transformPointCloud(can_cloud, *transformed_cloud, trx);
-	
-	// metadata
-	transformed_cloud->header = input_cloud->header;
-	transformed_cloud->header.frame_id = "camera_depth_optical_frame";
-	transformed_cloud->header.stamp = ros::Time::now().toSec() * 1e6;
-	transformed_cloud->is_dense = true;
-	transformed_cloud->width = npts;
-	transformed_cloud->height = 1;
-	
-	// publish
-	pubCloud.publish(transformed_cloud);
 }
 
 pcl::ModelCoefficients::Ptr ObjectFinder::findTable(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud) {
@@ -350,6 +319,18 @@ int main(int argc, char** argv) {
 	original_cloud->header.frame_id = "base_link";
 	*/
 
+	// so we can transform from kinect to odom space
+	bool tf_is_initialized = false;
+	tf::TransformListener *tf_p = new tf::TransformListener(nh);
+	tf::StampedTransform odom_wrt_kinect;
+
+	if (!tf_p->waitForTransform("odom", "camera_depth_optical_frame", ros::Time(0),
+		ros::Duration(10.0), // wait no more than 10 seconds
+		ros::Duration(0.5)) { // poll every 0.5 seconds
+		ROS_WARN("Transform could not be initialized. Is the kinect initialized?");
+		return -1;
+	}
+
 	ObjectFinder finder(nh);
 	pcl::PointCloud<pcl::PointXYZ>::Ptr search_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 	// whether or not to use the search cloud instead of the live stream
@@ -388,6 +369,79 @@ int main(int argc, char** argv) {
 				break;
 			}
 			case FIND_CAN2:{
+				// transform the point cloud
+				pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+				try {
+					tf_p->transformPointCloud("odom", *(finder.kinect_raw), transformed_cloud);
+				}
+				catch (tf::TransformException& exception) {
+					ROS_ERROR("%s", exception.what());
+				}
+
+				// filter the cloud along the z-axis to only keep stuff near table height
+				pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+				pcl::PassThrough<pcl::PointXYZ> filter;
+				filter.setInputCloud(transformed_cloud);
+				filter.setFilterFieldName("z");
+				filter.setFilterLimits(0.8, 1.5);
+				filter.filter(*filtered_cloud);
+				
+				// find the table using PROSAC segmentation
+				pcl::SACSegmentation<pcl::PointXYZ> seg;
+				pcl::PointIndices table_inliers;
+				pcl::ModelCoefficients table_coefficients;
+				seg.setOptimizeCoefficients(true);
+				seg.setModelType(pcl::SACMODEL_PLANE);
+				seg.setDistanceThreshold(0.01);
+				seg.setMaxIterations(100);
+				seg.setMethodType(pcl::SAC_PROSAC);	
+				seg.setInputCloud(filtered_cloud);
+				seg.segment(table_inliers, table_coefficients);
+
+				// remove the table inliers
+				pcl::ExtractIndices<pcl::PointXYZ> remover;
+				remover.setInputCloud(filtered_cloud);
+				remover.setIndices(table_inliers.indices);
+				remover.setNegative(true); // remove specified indices
+				remover.filter(*filtered_cloud);
+
+				// estimate the center based on the centroid
+				Eigen::Vector3f can_center;
+				pcl::compute3DCentroid(*filtered_cloud, can_center);		
+
+				// refine the center with a limited number of iterations
+				double r_err = 1.0, // make it run at least once
+					dCdx = 0.0,
+					dCdy = 0.0;
+				Eigen::Vector3f diff;
+				for (int iter = 0; iter < 10 && r_err > 0.02; iter++) {
+					can_center.x() -= 0.01 * dCdx;
+					can_center.y() -= 0.01 * dCdy;
+					// calculate the error of the guess
+					for (int i=0; i < filtered_cloud->points.size(); i++) {
+						diff = can_center - filtered_cloud->points[i];
+						r_err += diff.x() * diff.x() + diff.y() * diff.y() - CAN_RADIUS * CAN_RADIUS;
+						dCdx += 2.0 * diff.x();
+						dCdy += 2.0 * diff.y();
+					}
+				}
+				
+				// create a model of the can
+				pcl::PointCloud<pcl::PointXYZ>::Ptr can_cloud(finder.getCanCloud(CAN_RADIUS, CAN_HEIGHT));
+			
+				// translate and display
+				pcl::PointCloud<pcl::PointXYZ>::Ptr display_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+				Eigne::Affine3f transformer = Eigen::Affine3f::Identity();
+				transformer.translate(can_center);
+				pcl::transformPointCloud(*can_cloud, *display_cloud, transformer);
+
+				// metadata
+				display_cloud->header.frame_id = "camera_depth_optical_frame";
+				display_cloud->header.stamp = ros::Time::now().toSec() * 1e6;
+	
+				// publish
+				finder.pubCloud.publish(display_cloud);
+
 				break;
 			}
 			case FIND_TABLE:{
