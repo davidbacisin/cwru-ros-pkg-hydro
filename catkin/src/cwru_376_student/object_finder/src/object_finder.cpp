@@ -93,7 +93,7 @@ Eigen::Vector3f ObjectFinder::computeCentroid(const pcl::PointCloud<pcl::PointXY
 }
 
 
-pcl::PointCloud<pcl::PointXYZ> getCanCloud(float radius, float height) {
+pcl::PointCloud<pcl::PointXYZ>::Ptr ObjectFinder::getCanCloud(float radius, float height) {
 	double theta, h;
 	int i, npts = 0;
     	Eigen::Vector3f pt;
@@ -143,7 +143,7 @@ pcl::ModelCoefficients::Ptr ObjectFinder::findCan(const pcl::PointCloud<pcl::Poi
 	// tell the segmenter what to find	
 	seg.setModelType(pcl::SACMODEL_CYLINDER);
 	seg.setRadiusLimits(0.031, 0.035);
-	seg.setSamplesMaxDist(0.2);
+	// seg.setSamplesMaxDist(0.2);
 	if (vertical_initialized) {
 		seg.setAxis(vertical_axis);
 		seg.setEpsAngle(0.001); // really small angle
@@ -320,15 +320,20 @@ int main(int argc, char** argv) {
 	*/
 
 	// so we can transform from kinect to odom space
-	bool tf_is_initialized = false;
+	bool tf_initialized = false;
 	tf::TransformListener *tf_p = new tf::TransformListener(nh);
 	tf::StampedTransform odom_wrt_kinect;
-
-	if (!tf_p->waitForTransform("odom", "camera_depth_optical_frame", ros::Time(0),
-		ros::Duration(10.0), // wait no more than 10 seconds
-		ros::Duration(0.5)) { // poll every 0.5 seconds
-		ROS_WARN("Transform could not be initialized. Is the kinect initialized?");
-		return -1;
+	while (!tf_initialized) {
+		try {
+			tf_p->lookupTransform("odom", "camera_depth_optical_frame", ros::Time(0), odom_wrt_kinect);
+			tf_initialized = true;
+		}
+		catch (tf::TransformException& e) {
+			ROS_WARN("%s", e.what());
+			tf_initialized = false;
+			ros::spinOnce();
+			ros::Duration(0.5).sleep();
+		}
 	}
 
 	ObjectFinder finder(nh);
@@ -371,12 +376,9 @@ int main(int argc, char** argv) {
 			case FIND_CAN2:{
 				// transform the point cloud
 				pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-				try {
-					tf_p->transformPointCloud("odom", *(finder.kinect_raw), transformed_cloud);
-				}
-				catch (tf::TransformException& exception) {
-					ROS_ERROR("%s", exception.what());
-				}
+				Eigen::Affine3d kinect_to_odom;
+				tf::transformTFToEigen(odom_wrt_kinect, kinect_to_odom);
+				pcl::transformPointCloud(*finder.pcl_kinect, *transformed_cloud, kinect_to_odom);
 
 				// filter the cloud along the z-axis to only keep stuff near table height
 				pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud(new pcl::PointCloud<pcl::PointXYZ>);
@@ -388,38 +390,39 @@ int main(int argc, char** argv) {
 				
 				// find the table using PROSAC segmentation
 				pcl::SACSegmentation<pcl::PointXYZ> seg;
-				pcl::PointIndices table_inliers;
-				pcl::ModelCoefficients table_coefficients;
+				pcl::PointIndices::Ptr table_inliers(new pcl::PointIndices);
+				pcl::ModelCoefficients::Ptr table_coefficients(new pcl::ModelCoefficients);
 				seg.setOptimizeCoefficients(true);
 				seg.setModelType(pcl::SACMODEL_PLANE);
 				seg.setDistanceThreshold(0.01);
 				seg.setMaxIterations(100);
 				seg.setMethodType(pcl::SAC_PROSAC);	
 				seg.setInputCloud(filtered_cloud);
-				seg.segment(table_inliers, table_coefficients);
+				seg.segment(*table_inliers, *table_coefficients);
 
 				// remove the table inliers
 				pcl::ExtractIndices<pcl::PointXYZ> remover;
 				remover.setInputCloud(filtered_cloud);
-				remover.setIndices(table_inliers.indices);
+				remover.setIndices(table_inliers);
 				remover.setNegative(true); // remove specified indices
 				remover.filter(*filtered_cloud);
 
 				// estimate the center based on the centroid
-				Eigen::Vector3f can_center;
-				pcl::compute3DCentroid(*filtered_cloud, can_center);		
+				Eigen::Vector4f can_center_4f; // compute3DCentroid requires a 4-vector for some reason
+				pcl::compute3DCentroid(*filtered_cloud, can_center_4f);		
 
 				// refine the center with a limited number of iterations
 				double r_err = 1.0, // make it run at least once
 					dCdx = 0.0,
 					dCdy = 0.0;
-				Eigen::Vector3f diff;
+				Eigen::Vector3f can_center = can_center_4f.head<3>(),
+					diff;
 				for (int iter = 0; iter < 10 && r_err > 0.02; iter++) {
 					can_center.x() -= 0.01 * dCdx;
 					can_center.y() -= 0.01 * dCdy;
 					// calculate the error of the guess
 					for (int i=0; i < filtered_cloud->points.size(); i++) {
-						diff = can_center - filtered_cloud->points[i];
+						diff = can_center - filtered_cloud->points[i].getVector3fMap();
 						r_err += diff.x() * diff.x() + diff.y() * diff.y() - CAN_RADIUS * CAN_RADIUS;
 						dCdx += 2.0 * diff.x();
 						dCdy += 2.0 * diff.y();
@@ -431,7 +434,7 @@ int main(int argc, char** argv) {
 			
 				// translate and display
 				pcl::PointCloud<pcl::PointXYZ>::Ptr display_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-				Eigne::Affine3f transformer = Eigen::Affine3f::Identity();
+				Eigen::Affine3f transformer = Eigen::Affine3f::Identity();
 				transformer.translate(can_center);
 				pcl::transformPointCloud(*can_cloud, *display_cloud, transformer);
 
