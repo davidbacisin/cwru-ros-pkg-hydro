@@ -103,16 +103,21 @@ int main(int argc, char **argv) {
     Irb120_fwd_solver irb120_fwd_solver;
     Irb120_IK_solver ik_solver;
 
-    // we should keep the tool flange as this orientation
-    // b_des<<0,0,1;
-    // t_des<<0,1,0;
-    // n_des = t_des.cross(b_des);
+    
+	Eigen::Vector3d n_urdf_wrt_DH,t_urdf_wrt_DH,b_urdf_wrt_DH;
+
+    n_urdf_wrt_DH <<0,0,1;
+    t_urdf_wrt_DH <<0,1,0;
+    b_urdf_wrt_DH <<-1,0,0;
+    Eigen::Matrix3d R_urdf_wrt_DH;
+    R_urdf_wrt_DH.col(0) = n_urdf_wrt_DH;
+    R_urdf_wrt_DH.col(1) = t_urdf_wrt_DH;
+    R_urdf_wrt_DH.col(2) = b_urdf_wrt_DH;    
+
     n_des << 1,0,0;
     t_des << 0,1,0;
-    b_des = n_des.cross(t_des);
+    sb_des = n_des.cross(t_des);
 
-
-    
     Eigen::Matrix3d R_des;
     R_des.col(0) = n_des;
     R_des.col(1) = t_des;
@@ -123,7 +128,8 @@ int main(int argc, char **argv) {
     geometry_msgs::Point unreachablePtWrtBaseLink;
     Eigen::Affine3d a_tool_des; // expressed in DH frame
     
-    a_tool_des.linear() = R_des; // never change
+    // taking transformation into DH frame
+    a_tool_des.linear() = R_des * R_urdf_wrt_DH.transpose(); // never change
     std::cout << "====  irb120 kinematics solver ====" << std::endl;
 
     bool should_track_empty = false;

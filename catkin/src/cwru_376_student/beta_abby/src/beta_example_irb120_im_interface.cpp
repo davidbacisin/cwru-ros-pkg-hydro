@@ -96,7 +96,7 @@ bool triggerService(cwru_srv::simple_bool_service_messageRequest& request, cwru_
 }
 
 //command robot to move to "qvec" using a trajectory message, sent via ROS-I
-void stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::JointTrajectory &new_trajectory) {
+void stuff_trajectory(Vectorq6x1 qvec, trajectory_msgs::JointTrajectory &new_trajectory) {
     
     // declaring a 50 number of elements vector objector trajectory_points(50)
     std::vector<trajectory_msgs::JointTrajectoryPoint> trajectory_points1(25);
@@ -281,6 +281,7 @@ int main(int argc, char** argv) {
             g_trigger=false; // reset the trigger
             //is this point reachable?
             A_flange_des_DH = g_A_flange_desired;
+            // takes a transformation
             A_flange_des_DH.linear() = g_A_flange_desired.linear()*R_urdf_wrt_DH.transpose();
             cout<<"R des DH: "<<endl;
             cout<<A_flange_des_DH.linear()<<endl;

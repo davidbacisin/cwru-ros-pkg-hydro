@@ -3,7 +3,72 @@
 // problem with this:  
 
 #include "joint_space_planner.h"
+bool g_trigger=false;
+tf::TransformListener *g_tf;
 using namespace std;
+
+void markerListenerCB(const visualization_msgs::InteractiveMarkerFeedbackConstPtr &feedback) {
+    ROS_INFO_STREAM(feedback->marker_name << " is now at "
+            << feedback->pose.position.x << ", " << feedback->pose.position.y
+            << ", " << feedback->pose.position.z);
+    // transform
+    geometry_msgs::PoseStamped marker,
+            wrtlink1;
+        marker.header.frame_id = "base_link";
+        marker.header.stamp = ros::Time::now();
+        marker.pose.position.x = feedback->pose.position.x;
+        marker.pose.position.y = feedback->pose.position.y;
+        marker.pose.position.z = feedback->pose.position.z;
+        marker.pose.orientation.x = feedback->pose.orientation.x;
+        marker.pose.orientation.y = feedback->pose.orientation.y;
+        marker.pose.orientation.z = feedback->pose.orientation.z;
+        marker.pose.orientation.w = feedback->pose.orientation.w;
+    try {
+        g_tf->transformPose("link1", marker, wrtlink1);
+    }
+    catch (tf::TransformException& exception) {
+        ROS_ERROR("%s", exception.what());
+    }
+    g_p[0] = wrtlink1.pose.position.x;
+    g_p[1] = wrtlink1.pose.position.y;
+    g_p[2] = wrtlink1.pose.position.z;
+    g_quat.x() = wrtlink1.pose.orientation.x;
+    g_quat.y() = wrtlink1.pose.orientation.y;
+    g_quat.z() = wrtlink1.pose.orientation.z;
+    g_quat.w() = wrtlink1.pose.orientation.w; 
+    //copy to global vars:
+    /*g_p[0] = feedback->pose.position.x;
+    g_p[1] = feedback->pose.position.y;
+    g_p[2] = feedback->pose.position.z;
+    g_quat.x() = feedback->pose.orientation.x;
+    g_quat.y() = feedback->pose.orientation.y;
+    g_quat.z() = feedback->pose.orientation.z;
+    g_quat.w() = feedback->pose.orientation.w;  */
+    g_R = g_quat.matrix();
+}
+
+void jointStateCB(const sensor_msgs::JointStatePtr &js_msg) {
+    
+    for (int i=0;i<6;i++) {
+        g_q_state[i] = js_msg->position[i];
+    }
+    //cout<<"g_q_state: "<<g_q_state.transpose()<<endl;
+    
+}
+
+bool triggerService(cwru_srv::simple_bool_service_messageRequest& request, cwru_srv::simple_bool_service_messageResponse& response)
+{
+    ROS_INFO("service callback activated");
+    response.resp = true; // boring, but valid response info
+    // grab the most recent IM data and repackage it as an Affine3 matrix to set a target hand pose;
+    g_A_flange_desired.translation() = g_p;
+    g_A_flange_desired.linear() = g_R;
+    cout<<"g_p: "<<g_p.transpose()<<endl;
+    cout<<"R: "<<endl;
+    cout<<g_R<<endl;
+    g_trigger=true; //inform "main" that we have a new goal!
+    return true;
+}
 
 JointSpacePlanner::JointSpacePlanner(int i, int j) {
     cout<<"dummy constructor, i,j = "<<i<<","<<j<<endl; 

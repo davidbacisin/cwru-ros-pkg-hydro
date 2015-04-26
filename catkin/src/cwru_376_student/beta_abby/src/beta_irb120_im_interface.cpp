@@ -2,6 +2,8 @@
 #include <ros/ros.h>
 #include <visualization_msgs/Marker.h>
 #include <geometry_msgs/Point.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <tf/transform_listener.h>
 #include <iostream>
 #include <math.h>
 #include <stdlib.h>
@@ -48,7 +50,9 @@ private:
     Eigen::Matrix3d g_R_;
     Eigen::Affine3d g_A_flange_desired_;
     bool g_trigger_;
-    
+    tf::TransformListener *g_tf_;
+    geometry_msgs::PoseStamped marker_;
+    geometry_msgs::PoseStamped wrtlink1_;
     /*Eigen::Vector3d p_;
     Eigen::Vector3d n_des_,t_des_,b_des_;
     std::vector<Vectorq6x1> q6dof_solns_;
@@ -82,7 +86,7 @@ private:
     
     // prototype for some other member functions which is used to control the trajectory and function to command ABBY to move
     // function to command robot to move to "qvec" using a trajectory message, sent via ROS-I
-    void stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::JointTrajectory &new_trajectory);
+    void stuff_trajectory(Vectorq6x1 p, Vectorq6x1 q, double c, trajectory_msgs::JointTrajectory &new_trajectory);
     
     // function to command ABBY to move
     void moveABBY();
@@ -102,13 +106,6 @@ BetaInterfaceClass::BetaInterfaceClass(ros::NodeHandle* nodehandle):nh_(*nodehan
     initializeSubscribers();
     initializeServices();
 
-    /*g_p_;
-    g_q_state_;  //typedef Eigen::Matrix<double, 6, 1> Vectorq6x1
-    */
-    //geometry_msgs::Quaternion g_quat; // global var for quaternion
-    /*g_quat_;
-    g_R_;
-    g_A_flange_desired_;*/
     g_trigger_ = false;
     sleep_timer_ = new ros::Rate(10.0);
 
@@ -137,6 +134,22 @@ void BetaInterfaceClass::markerListenerCB(const visualization_msgs::InteractiveM
     ROS_INFO_STREAM(feedback->marker_name << " is now at "
             << feedback->pose.position.x << ", " << feedback->pose.position.y
             << ", " << feedback->pose.position.z);
+    // transform
+    marker_.header.frame_id = "base_link";
+    marker_.header.stamp = ros::Time::now();
+    marker_.pose.position.x = feedback->pose.position.x;
+    marker_.pose.position.y = feedback->pose.position.y;
+    marker_.pose.position.z = feedback->pose.position.z;
+    marker_.pose.orientation.x = feedback->pose.orientation.x;
+    marker_.pose.orientation.y = feedback->pose.orientation.y;
+    marker_.pose.orientation.z = feedback->pose.orientation.z;
+    marker_.pose.orientation.w = feedback->pose.orientation.w;
+    try {
+        g_tf_->transformPose("link1", marker_, wrtlink1_);
+    }
+    catch (tf::TransformException& exception) {
+        ROS_ERROR("%s", exception.what());
+    }
     //copy to global vars:
     g_p_[0] = feedback->pose.position.x;
     g_p_[1] = feedback->pose.position.y;
@@ -172,12 +185,12 @@ bool BetaInterfaceClass::triggerService(cwru_srv::simple_bool_service_messageReq
 }
 
 //command robot to move to "qvec" using a trajectory message, sent via ROS-I
-void BetaInterfaceClass::stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::JointTrajectory &new_trajectory) {
+void BetaInterfaceClass::stuff_trajectory(Vectorq6x1 p, Vectorq6x1 q, double c, trajectory_msgs::JointTrajectory &new_trajectory) {
     
     // declaring a 50 number of elements vector objector trajectory_points(50)
-    std::vector<trajectory_msgs::JointTrajectoryPoint> trajectory_points(50);
+    std::vector<trajectory_msgs::JointTrajectoryPoint> trajectory_points(25);
     
-    new_trajectory.points.clear(); 
+    // new_trajectory.points.clear(); 
     auto jointsSum = new_trajectory.joint_names.size();
     auto trajPointsSum = trajectory_points.size(); // This trajPointsSum is the sum value of the trajectory points ABBY go thru
     ROS_INFO("the number of joints: ",jointsSum);
@@ -189,13 +202,13 @@ void BetaInterfaceClass::stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::Joi
     }
     
     Vectorq6x1 interJointAngle; // default-initializing a variable interJointAngle of type Vectorq6x1
-    for (size_t i = 0; i < min( qvec.size(), g_q_state_.size() ); ++i){
-        interJointAngle[i] = (qvec[i] - g_q_state_[i]) / (trajPointsSum - 1);
+    for (size_t i = 0; i < min( p.size(), q.size() ); ++i){
+        interJointAngle[i] = (p[i] - q[i]) / (trajPointsSum - 1);
     }
     
     std::vector<Vectorq6x1> interJointAngleVec(trajPointsSum - 1); // declaring a vector which has trajectory_points.size() - 1 number of elements
     auto interJointAngleVecSum = interJointAngleVec.size(); // This interJointAngleVecSum is the sum value of the trajectory points ABBY go thru except the first points
-    interJointAngleVec[0] = g_q_state_ + interJointAngle; // defining the first element of the vector
+    interJointAngleVec[0] = q + interJointAngle; // defining the first element of the vector
     // defining the rest of the element of the vector
     for (auto i = 1; i < interJointAngleVecSum; i++){
         interJointAngleVec[i] = interJointAngleVec[i-1] + interJointAngle;
@@ -203,16 +216,16 @@ void BetaInterfaceClass::stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::Joi
     
     // push back each incremented joints angles into the corresponding trajectory points positions
     for (int ijnt = 0; ijnt < jointsSum; ijnt++){
-        trajectory_points[0].positions.push_back(g_q_state_[ijnt]); // stuff in position commands for 6 joints
+        trajectory_points[0].positions.push_back(q[ijnt]); // stuff in position commands for 6 joints
     }
-    trajectory_points[0].time_from_start = ros::Duration(0);
+    trajectory_points[0].time_from_start = ros::Duration(c);
     for (auto i = 1; i < trajPointsSum; i++){
         //time_from_start is relative to trajectory.header.stamp 
         //each trajectory point's time_from_start must be greater than the last
         for (int ijnt = 0; ijnt < jointsSum; ijnt++){
             trajectory_points[i].positions.push_back(interJointAngleVec[i-1](ijnt)); // stuff in position commands for 6 joints
         }
-        trajectory_points[i].time_from_start = ros::Duration(0.05*i); 
+        trajectory_points[i].time_from_start = ros::Duration(c + 0.05*i); 
     }
     
     // start from home pose... really, should should start from current pose!
@@ -223,10 +236,14 @@ void BetaInterfaceClass::stuff_trajectory( Vectorq6x1 qvec, trajectory_msgs::Joi
 }
 
 void BetaInterfaceClass::moveABBY () {
+    double a = 0.0;
+    double b = 1.4;
     Eigen::Vector3d p;
     Eigen::Vector3d n_des,t_des,b_des;
     std::vector<Vectorq6x1> q6dof_solns;
     Vectorq6x1 qvec;
+    Vectorq6x1 ptAboveTb; // the joints angles which make ABBY from current position to a point above from the table
+    ptAboveTb << 0.0, -2*3.14/6, 2*3.14/10, 0.0, 2*3.14/10, 0.0;
     //sleep_timer_ = new ros::Rate(10.0); //10Hz update rate    
     Irb120_fwd_solver irb120_fwd_solver; //instantiate forward and IK solvers
     Irb120_IK_solver ik_solver;
@@ -256,6 +273,22 @@ void BetaInterfaceClass::moveABBY () {
     //std::cout << A_fwd_DH.linear() << std::endl;
     //std::cout << "A origin: " << A_fwd_DH.translation().transpose() << std::endl; 
     
+    bool tf_is_initialized = false;
+    tf::StampedTransform baseLink_wrt_link1;
+    g_tf_ = new tf::TransformListener(nh_);
+    while (!tf_is_initialized) {
+        try {
+            g_tf_->lookupTransform("base_link", "link1", ros::Time(0), baseLink_wrt_link1);
+            tf_is_initialized = true;
+        }
+        catch (tf::TransformException& exception) {
+            ROS_ERROR("%s", exception.what());
+            tf_is_initialized = false;
+            ros::spinOnce();
+            ros::Duration(0.5).sleep();
+        }
+    }
+
     int nsolns;
     
     while(ros::ok()) {
@@ -265,6 +298,7 @@ void BetaInterfaceClass::moveABBY () {
             g_trigger_=false; // reset the trigger
             //is this point reachable?
             A_flange_des_DH = g_A_flange_desired_;
+            // takes a transformation
             A_flange_des_DH.linear() = g_A_flange_desired_.linear() * R_urdf_wrt_DH.transpose();
             cout<<"R des DH: "<<endl;
             cout<<A_flange_des_DH.linear()<<endl;
@@ -276,7 +310,7 @@ void BetaInterfaceClass::moveABBY () {
                 //qvec = q6dof_solns[0];
                 // defining a joint limits vector for joint 0 and joint 1, such that each joint is specified within a range of motion
                 std::vector<double> jointLimits {0,-M_PI,-M_PI/2,M_PI/6};
-                std::vector<int> weight{1,2,3,3,2,1}; //defining a weight vector
+                std::vector<int> weight{1,1,1,7,5,1}; //defining a weight vector
                 double sum;
                 double minimum = 1e6;
                 int bestikSoluNo = 0;
@@ -297,8 +331,10 @@ void BetaInterfaceClass::moveABBY () {
                     }
                 }
                 qvec = q6dof_solns[bestikSoluNo];
+                new_trajectory.points.clear();  
+                stuff_trajectory(ptAboveTb, g_q_state_,a,new_trajectory);
+                stuff_trajectory(qvec,ptAboveTb,b,new_trajectory);
 
-                stuff_trajectory(qvec,new_trajectory);
 
                 pub_.publish(new_trajectory);
             }
