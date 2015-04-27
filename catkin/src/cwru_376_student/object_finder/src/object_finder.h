@@ -25,11 +25,11 @@
 
 enum ProcessMode {
 	IDLE 		= 0,
-	FIND_CAN 	= 1,
-	HINT 		= 2,
-	UPDATE_VISION	= 3,
-	FIND_TABLE	= 4,
-	FIND_CAN2	= 5
+	FIND_CAN2	= 1,
+	FIND_CAN 	= 2,
+	FIND_TABLE	= 3,
+	HINT 		= 4,
+	UPDATE_VISION	= 5
 };
 
 class ObjectFinder {
@@ -48,6 +48,8 @@ public:
 	pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_kinect;
 	sensor_msgs::PointCloud2ConstPtr kinect_raw;
 	bool kinect_initialized;
+
+	Eigen::Vector3f computeCentroid(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
 private:
 	ros::NodeHandle nh;
 	Eigen::Vector3f hint_point,
@@ -69,7 +71,6 @@ private:
 	void selectCB(const sensor_msgs::PointCloud2ConstPtr& cloud);
 	bool modeCB(cwru_srv::simple_int_service_messageRequest& request, cwru_srv::simple_int_service_messageResponse& response);
 
-	Eigen::Vector3f computeCentroid(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
 	Eigen::Vector3f computeCentroid(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr cloud, std::vector<int> indices);
 	// to be called only by the higher-level methods which specify the object to be found
 	pcl::ModelCoefficients::Ptr find(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr input_cloud, Eigen::Vector3f *centroid);

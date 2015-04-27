@@ -1,6 +1,6 @@
 #include "object_finder.h"
 
-#define CAN_HEIGHT	0.127
+#define CAN_HEIGHT	0.12
 #define CAN_RADIUS	0.035
 
 // track the current process mode
@@ -323,9 +323,9 @@ int main(int argc, char** argv) {
 	bool tf_initialized = false;
 	tf::TransformListener *tf_p = new tf::TransformListener(nh);
 	tf::StampedTransform odom_wrt_kinect;
-	while (!tf_initialized) {
+	while (!tf_initialized && ros::ok()) {
 		try {
-			tf_p->lookupTransform("odom", "camera_depth_optical_frame", ros::Time(0), odom_wrt_kinect);
+			tf_p->lookupTransform("base_link", "camera_depth_optical_frame", ros::Time(0), odom_wrt_kinect);
 			tf_initialized = true;
 		}
 		catch (tf::TransformException& e) {
@@ -385,8 +385,14 @@ int main(int argc, char** argv) {
 				pcl::PassThrough<pcl::PointXYZ> filter;
 				filter.setInputCloud(transformed_cloud);
 				filter.setFilterFieldName("z");
-				filter.setFilterLimits(0.8, 1.5);
+				filter.setFilterLimits(0.6, 1.2);
 				filter.filter(*filtered_cloud);
+				
+				// metadata
+				filtered_cloud->header.frame_id = "base_link"; // remember we transformed it!
+				filtered_cloud->header.stamp = ros::Time::now().toSec() * 1e6;
+				finder.pubCloud.publish(filtered_cloud);
+				ros::Duration(1.0).sleep();
 				
 				// find the table using PROSAC segmentation
 				pcl::SACSegmentation<pcl::PointXYZ> seg;
@@ -407,30 +413,53 @@ int main(int argc, char** argv) {
 				remover.setNegative(true); // remove specified indices
 				remover.filter(*filtered_cloud);
 
+				// remove points below table
+				filter.setInputCloud(filtered_cloud);
+				filter.setFilterFieldName("z");
+				double table_height = -table_coefficients->values[3]/table_coefficients->values[2];
+				filter.setFilterLimits(table_height + 0.02, table_height + 0.05);
+				filter.filter(*filtered_cloud);
+
+				finder.pubCloud.publish(filtered_cloud);
+				ros::Duration(1.0).sleep();
+
 				// estimate the center based on the centroid
 				Eigen::Vector4f can_center_4f; // compute3DCentroid requires a 4-vector for some reason
-				pcl::compute3DCentroid(*filtered_cloud, can_center_4f);		
+				pcl::compute3DCentroid(*filtered_cloud, can_center_4f);
+				// can has to be on the table
+				can_center_4f.z() = table_height;
 
 				// refine the center with a limited number of iterations
-				double r_err = 1.0, // make it run at least once
-					dCdx = 0.0,
-					dCdy = 0.0;
+				double r_sqd,
+					r_err = 1.0, // make it run at least once
+					dEdx,
+					dEdy;
 				Eigen::Vector3f can_center = can_center_4f.head<3>(),
 					diff;
-				for (int iter = 0; iter < 10 && r_err > 0.02; iter++) {
-					can_center.x() -= 0.01 * dCdx;
-					can_center.y() -= 0.01 * dCdy;
+				for (int iter = 0; iter < 10 && fabs(r_err) > 0.02; iter++) {
+					// reset					
+					r_err = 0.0;
+					dEdx = 0.0;
+					dEdy = 0.0;
 					// calculate the error of the guess
 					for (int i=0; i < filtered_cloud->points.size(); i++) {
 						diff = can_center - filtered_cloud->points[i].getVector3fMap();
-						r_err += diff.x() * diff.x() + diff.y() * diff.y() - CAN_RADIUS * CAN_RADIUS;
-						dCdx += 2.0 * diff.x();
-						dCdy += 2.0 * diff.y();
+						r_sqd = diff.x() * diff.x() + diff.y() * diff.y();
+						r_err += r_sqd - CAN_RADIUS * CAN_RADIUS;
+						dEdx += (r_sqd - CAN_RADIUS * CAN_RADIUS) * diff.x() / r_sqd;
+						dEdy += (r_sqd - CAN_RADIUS * CAN_RADIUS) * diff.y() / r_sqd;
 					}
+					dEdx /= filtered_cloud->points.size();
+					dEdy /= filtered_cloud->points.size();
+					
+					// step toward minimum
+					can_center.x() -= dEdx;
+					can_center.y() -= dEdy;
 				}
 				
 				// create a model of the can
 				pcl::PointCloud<pcl::PointXYZ>::Ptr can_cloud(finder.getCanCloud(CAN_RADIUS, CAN_HEIGHT));
+				can_cloud->header.frame_id = "base_link";
 			
 				// translate and display
 				pcl::PointCloud<pcl::PointXYZ>::Ptr display_cloud(new pcl::PointCloud<pcl::PointXYZ>);
@@ -439,12 +468,15 @@ int main(int argc, char** argv) {
 				pcl::transformPointCloud(*can_cloud, *display_cloud, transformer);
 
 				// metadata
-				display_cloud->header.frame_id = "camera_depth_optical_frame";
+				display_cloud->header.frame_id = "base_link"; // remember we transformed it!
 				display_cloud->header.stamp = ros::Time::now().toSec() * 1e6;
 	
 				// publish
 				finder.pubCloud.publish(display_cloud);
+				ROS_INFO("Can center at (%f, %f, %f)", can_center.x(), can_center.y(), can_center.z());
 
+				// reset state variables
+				process_mode = IDLE;
 				break;
 			}
 			case FIND_TABLE:{
