@@ -114,9 +114,13 @@ int main(int argc, char **argv) {
     R_urdf_wrt_DH.col(1) = t_urdf_wrt_DH;
     R_urdf_wrt_DH.col(2) = b_urdf_wrt_DH;    
 
-    n_des << 1,0,0;
-    t_des << 0,1,0;
-    sb_des = n_des.cross(t_des);
+    // n_des << 1,0,0;
+    // t_des << 0,1,0;
+    // b_des = n_des.cross(t_des);
+
+    b_des<<1,0,0;
+    t_des<<0,1,0;
+    n_des = t_des.cross(b_des);
 
     Eigen::Matrix3d R_des;
     R_des.col(0) = n_des;
@@ -129,7 +133,9 @@ int main(int argc, char **argv) {
     Eigen::Affine3d a_tool_des; // expressed in DH frame
     
     // taking transformation into DH frame
-    a_tool_des.linear() = R_des * R_urdf_wrt_DH.transpose(); // never change
+    // a_tool_des.linear() = R_des * R_urdf_wrt_DH.transpose(); // never change
+
+    a_tool_des.linear() = R_des;
     std::cout << "====  irb120 kinematics solver ====" << std::endl;
 
     bool should_track_empty = false;
