@@ -3,6 +3,9 @@
 #define CAN_HEIGHT	0.12
 #define CAN_RADIUS	0.035
 
+#define KINECT_FRAME "kinect_pc_frame"
+// #define KINECT_FRAME "camera_depth_optical_frame"
+
 // track the current process mode
 ProcessMode process_mode = IDLE;
 
@@ -197,7 +200,7 @@ pcl::ModelCoefficients::Ptr ObjectFinder::findCan(const pcl::PointCloud<pcl::Poi
 	
 	// metadata
 	transformed_cloud->header = input_cloud->header;
-	transformed_cloud->header.frame_id = "camera_depth_optical_frame";
+	transformed_cloud->header.frame_id = KINECT_FRAME;
 	transformed_cloud->header.stamp = ros::Time::now().toSec() * 1e6;
 	transformed_cloud->is_dense = true;
 	transformed_cloud->width = npts;
@@ -260,7 +263,7 @@ pcl::ModelCoefficients::Ptr ObjectFinder::findTable(const pcl::PointCloud<pcl::P
 	
 	// metadata
 	transformed_cloud->header = input_cloud->header;
-	transformed_cloud->header.frame_id = "camera_depth_optical_frame";
+	transformed_cloud->header.frame_id = KINECT_FRAME;
 	transformed_cloud->header.stamp = ros::Time::now().toSec() * 1e6;
 	transformed_cloud->is_dense = true;
 	transformed_cloud->width = npts;
@@ -326,7 +329,7 @@ int main(int argc, char** argv) {
 	tf::StampedTransform odom_wrt_kinect;
 	while (!tf_initialized && ros::ok()) {
 		try {
-			tf_p->lookupTransform("base_link", "camera_depth_optical_frame", ros::Time(0), odom_wrt_kinect);
+			tf_p->lookupTransform("base_link", KINECT_FRAME, ros::Time(0), odom_wrt_kinect);
 			tf_initialized = true;
 		}
 		catch (tf::TransformException& e) {
