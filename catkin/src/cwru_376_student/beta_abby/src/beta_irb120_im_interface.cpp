@@ -22,6 +22,7 @@ class BetaInterfaceClass{
 public:
     BetaInterfaceClass(ros::NodeHandle* nodehandle); // "main" will need to instantiate a ROS nodehandle, then pass it to the constructor
     // may choose to define public methods or public variables, if desired
+    // the input parameter is a ros::NodeHandle* pointer
 private:
     // put private member data here;  "private" data will only be available to member functions of this class;
     ros::NodeHandle nh_; // we will need this, to pass between "main" and constructor
@@ -57,7 +58,7 @@ private:
     Eigen::Vector3d n_des_,t_des_,b_des_;
     std::vector<Vectorq6x1> q6dof_solns_;
     Vectorq6x1 qvec_;*/
-    ros::Rate *sleep_timer_; // update rate    
+    ros::Rate* sleep_timer_; // update rate    
     /*Irb120_fwd_solver irb120_fwd_solver_; //instantiate forward and IK solvers
     Irb120_IK_solver ik_solver_;
     Eigen::Vector3d n_urdf_wrt_DH_,t_urdf_wrt_DH_,b_urdf_wrt_DH_;
@@ -100,6 +101,7 @@ private:
 // want to put all dirty work of initializations here
 // odd syntax: have to pass nodehandle pointer into constructor for constructor to build subscribers, etc
 // DEFAULT CONSTRUCTOR DEFINITION
+// Since nh_ is of type ros::NodeHandle, so that it should = *nodehandle, *nodehandle represents the value pointed by nodehandle
 BetaInterfaceClass::BetaInterfaceClass(ros::NodeHandle* nodehandle):nh_(*nodehandle)
 {
     initializePublishers();
@@ -151,13 +153,13 @@ void BetaInterfaceClass::markerListenerCB(const visualization_msgs::InteractiveM
         ROS_ERROR("%s", exception.what());
     }
     //copy to global vars:
-    g_p_[0] = feedback->pose.position.x;
-    g_p_[1] = feedback->pose.position.y;
-    g_p_[2] = feedback->pose.position.z;
-    g_quat_.x() = feedback->pose.orientation.x;
-    g_quat_.y() = feedback->pose.orientation.y;
-    g_quat_.z() = feedback->pose.orientation.z;
-    g_quat_.w() = feedback->pose.orientation.w;   
+    g_p_[0] = wrtlink1_.pose.position.x;
+    g_p_[1] = wrtlink1_.pose.position.y;
+    g_p_[2] = wrtlink1_.pose.position.z;
+    g_quat_.x() = wrtlink1_.pose.orientation.x;
+    g_quat_.y() = wrtlink1_.pose.orientation.y;
+    g_quat_.z() = wrtlink1_.pose.orientation.z;
+    g_quat_.w() = wrtlink1_.pose.orientation.w;   
     g_R_ = g_quat_.matrix();
 }
 
@@ -350,7 +352,10 @@ int main(int argc, char** argv) {
     ros::init(argc, argv, "simple_marker_listener"); // this will be the node name;
     ros::NodeHandle nh; // create a node handle; need to pass this to the class constructor
     ROS_INFO("main: instantiating an object of type BetaInterfaceClass");
-    BetaInterfaceClass betaInterfaceClass(&nh);  //instantiate an BetaInterfaceClass object called BetaInterfaceClass and pass in pointer to nodehandle for constructor to use
+    // Since the input parameter of betaInterfaceClass's constructor is of type ros::NodeHandle* which is a pointer type, so that
+    // the &nh (a pointer) should be used as the input when we instantiate an BetaInterfaceClass object
+    BetaInterfaceClass betaInterfaceClass(&nh);  
+    //instantiate an BetaInterfaceClass object called betaInterfaceClass and pass in pointer to nodehandle for constructor to use
 
     return 0;
 }
