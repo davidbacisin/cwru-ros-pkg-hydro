@@ -153,13 +153,13 @@ void BetaInterfaceClass::markerListenerCB(const visualization_msgs::InteractiveM
         ROS_ERROR("%s", exception.what());
     }
     //copy to global vars:
-    g_p_[0] = feedback->pose.position.x;
-    g_p_[1] = feedback->pose.position.y;
-    g_p_[2] = feedback->pose.position.z;
-    g_quat_.x() = feedback->pose.orientation.x;
-    g_quat_.y() = feedback->pose.orientation.y;
-    g_quat_.z() = feedback->pose.orientation.z;
-    g_quat_.w() = feedback->pose.orientation.w;   
+    g_p_[0] = wrtlink1_.pose.position.x;
+    g_p_[1] = wrtlink1_.pose.position.y;
+    g_p_[2] = wrtlink1_.pose.position.z;
+    g_quat_.x() = wrtlink1_.pose.orientation.x;
+    g_quat_.y() = wrtlink1_.pose.orientation.y;
+    g_quat_.z() = wrtlink1_.pose.orientation.z;
+    g_quat_.w() = wrtlink1_.pose.orientation.w;   
     g_R_ = g_quat_.matrix();
 }
 
