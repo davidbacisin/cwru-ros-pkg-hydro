@@ -61,14 +61,6 @@ void markerListenerCB(const visualization_msgs::InteractiveMarkerFeedbackConstPt
 	g_quat.y() = wrtlink1.pose.orientation.y;
 	g_quat.z() = wrtlink1.pose.orientation.z;
 	g_quat.w() = wrtlink1.pose.orientation.w; 
-    //copy to global vars:
-    /*g_p[0] = feedback->pose.position.x;
-    g_p[1] = feedback->pose.position.y;
-    g_p[2] = feedback->pose.position.z;
-    g_quat.x() = feedback->pose.orientation.x;
-    g_quat.y() = feedback->pose.orientation.y;
-    g_quat.z() = feedback->pose.orientation.z;
-    g_quat.w() = feedback->pose.orientation.w;  */
     g_R = g_quat.matrix();
 }
 

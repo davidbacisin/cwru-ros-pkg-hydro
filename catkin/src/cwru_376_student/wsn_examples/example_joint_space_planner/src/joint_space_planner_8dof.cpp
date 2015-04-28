@@ -33,3 +33,4 @@ bool JointSpacePlanner8DOF::compute_optimal_path(PathOptions path_options,std::v
     ROS_INFO("you wish!  lots of work to do first!");
     return true;
 }
+
