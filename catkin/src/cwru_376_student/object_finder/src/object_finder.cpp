@@ -473,7 +473,7 @@ int main(int argc, char** argv) {
 	
 				// publish
 				finder.pubCloud.publish(display_cloud);
-				ROS_INFO("Can center at (%f, %f, %f)", can_center.x(), can_center.y(), can_center.z());
+				ROS_INFO("Can top at (%f, %f, %f)", can_center.x(), can_center.y(), can_center.z() + CAN_HEIGHT);
 
 				// reset state variables
 				process_mode = IDLE;
