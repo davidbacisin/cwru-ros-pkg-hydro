@@ -8,6 +8,9 @@ catkin_simple()
 # example boost usage
 # find_package(Boost REQUIRED COMPONENTS system thread)
 
+find_package(Eigen REQUIRED)
+include_directories(${Eigen_INCLUDE_DIRS})
+
 # C++0x support - not quite the same as final C++11!
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
 

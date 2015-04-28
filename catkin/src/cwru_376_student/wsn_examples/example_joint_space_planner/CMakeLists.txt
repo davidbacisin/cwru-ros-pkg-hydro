@@ -20,7 +20,7 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
 set(CMAKE_BUILD_TYPE Release)
 
 # Libraries
-#cs_add_library(joint_space_planner src/joint_space_planner.cpp)   
+cs_add_library(joint_space_planner src/joint_space_planner.cpp)   
 
 # Executables
 cs_add_executable(joint_space_planner_test_main src/joint_space_planner_test_main.cpp)
