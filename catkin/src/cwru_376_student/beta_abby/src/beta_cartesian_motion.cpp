@@ -46,7 +46,24 @@ tf::StampedTransform baseLink_wrt_link1;
 tf::TransformListener *g_tf;
 bool g_trigger=false;
 Eigen::Affine3d g_A_flange_desired;
+Irb120_fwd_solver irb120_fwd_solver;
+Irb120_IK_solver ik_solver;
+int nsolns;
+int nlayer;
+Eigen::Affine3d a_tool_des; // expressed in DH frame
 
+Eigen::Vector3d p;
+Eigen::Vector3d n_des,t_des,b_des;
+std::vector<Vectorq6x1> q6dof_solns;
+Vectorq6x1 qvec;
+double x_des,y_des,z_des;
+std::vector<std::vector<Eigen::VectorXd> > path_options; 
+std::vector<Eigen::VectorXd>  single_layer_nodes;     
+std::vector<Eigen::VectorXd> optimal_path;
+Eigen::VectorXd weights;
+Eigen::Matrix3d R_des;
+double t=0.0;
+Eigen::Affine3d A_fwd_DH;
 using namespace std;
 
 void markerListenerCB(const visualization_msgs::InteractiveMarkerFeedbackConstPtr &feedback) {
@@ -116,10 +133,10 @@ void canTopCallback(const geometry_msgs::PointStamped& pt) {
   can.is_found = true;
 }
 
-void findNlayerAndPathOption(const geometry_msgs::PointStamped& canTop, double x_des, 
-  std::vector<std::vector<Eigen::VectorXd>>& path_options, int nlayer)
+void findNlayerAndPathOption(std::vector<std::vector<Eigen::VectorXd>>& path_options)
 {
-  for (double x_var = canTop.top.point.z + 0.18; x_var < x_des; x_var += 0.01) {
+  path_options.clear();
+  for (double x_var = can.top.point.z + 0.18; x_var < x_des; x_var += 0.01) {
     p[0] = x_var;
     p[1]=  y_des;
     p[2] = z_des;
@@ -172,21 +189,21 @@ void findOptimalPath(std::vector<Eigen::VectorXd>& optimal_path){
    }  
 }
 
-void stuff_trajectory(trajectory_msgs::JointTrajectory &new_trajectory){
+void stuff_trajectory(trajectory_msgs::JointTrajectoryPoint trajectory_point, trajectory_msgs::JointTrajectory &new_trajectory){
   double dt = 0.4;
    //t+= 5.0; // go from home to first point in N sec; for simu, this does not behave same as on actual robot;
   for (int ilayer = 0; ilayer < nlayer; ilayer++) {
     qvec = optimal_path[ilayer];
     for (int ijnt=0;ijnt<6;ijnt++) {
-        trajectory_point1.positions[ijnt] = qvec[ijnt]; // put joint angles into trajectory_msgs::JointTrajectoryPoint varible
+        trajectory_point.positions[ijnt] = qvec[ijnt]; // put joint angles into trajectory_msgs::JointTrajectoryPoint varible
         // trajectory_point position member function.
     }
     t += dt;    
-    trajectory_point1.time_from_start = ros::Duration(t);  
-    new_trajectory.points.push_back(trajectory_point1); // append another point
+    trajectory_point.time_from_start = ros::Duration(t);  
+    new_trajectory.points.push_back(trajectory_point); // append another point
     // t += dt;    
-    //trajectory_point1.time_from_start =    ros::Duration(t);   
-    //new_trajectory.points.push_back(trajectory_point1); // go home between pts
+    //trajectory_point.time_from_start =    ros::Duration(t);   
+    //new_trajectory.points.push_back(trajectory_point); // go home between pts
     std::cout<<"qsoln = "<<qvec.transpose()<<std::endl;
     A_fwd_DH = irb120_fwd_solver.fwd_kin_solve(qvec); //fwd_kin_solve
 
@@ -216,15 +233,15 @@ int main(int argc, char** argv)
   ros::ServiceServer service = nh.advertiseService("move_trigger", triggerService);
   can.subscriber = nh.subscribe("/can_top_position", 1, canTopCallback);
 
-  Eigen::Vector3d p;
-  Eigen::Vector3d n_des,t_des,b_des;
-  std::vector<Vectorq6x1> q6dof_solns;
-  Vectorq6x1 qvec;
-  double x_des,y_des,z_des;
-  std::vector<std::vector<Eigen::VectorXd> > path_options; 
-  std::vector<Eigen::VectorXd>  single_layer_nodes;     
-  std::vector<Eigen::VectorXd> optimal_path;
-  Eigen::VectorXd weights;
+  // Eigen::Vector3d p;
+  // Eigen::Vector3d n_des,t_des,b_des;
+  // std::vector<Vectorq6x1> q6dof_solns;
+  // Vectorq6x1 qvec;
+  // double x_des,y_des,z_des;
+  // std::vector<std::vector<Eigen::VectorXd> > path_options; 
+  // std::vector<Eigen::VectorXd>  single_layer_nodes;     
+  // std::vector<Eigen::VectorXd> optimal_path;
+  // Eigen::VectorXd weights;
   
   bool tf_is_initialized = false;
   g_tf = new tf::TransformListener(nh);
@@ -253,7 +270,7 @@ int main(int argc, char** argv)
   t_des<<0,1,0; // projection on y axis of link1
   b_des = n_des.cross(t_des); // projection on z axis of link1
 
-  Eigen::Matrix3d R_des;
+  // Eigen::Matrix3d R_des;
   R_des.col(0) = n_des;
   R_des.col(1) = t_des;
   R_des.col(2) = b_des;
@@ -266,7 +283,7 @@ int main(int argc, char** argv)
   // R_des.col(1) = t_des;
   // R_des.col(2) = b_des;
   
-	Eigen::Affine3d a_tool_des; // expressed in DH frame
+	// Eigen::Affine3d a_tool_des; // expressed in DH frame
 	a_tool_des.linear() = R_des;
 
 //   //ros::Rate sleep_timer(UPDATE_RATE); //a timer for desired rate to send new traj points as commands
@@ -293,7 +310,7 @@ int main(int argc, char** argv)
 //       trajectory_point2.positions.push_back(0.0); // stuff in position commands for 6 joints        
 //   }
 //   //ros::Duration t_from_start(0); //initialize duration to 0
-  double t=0.0;
+  // double t=0.0;
 //   //double dt = 3;          
 //   trajectory_point1.time_from_start =    ros::Duration(0);   
 //   //trajectory_point2.time_from_start =    ros::Duration(2);  
@@ -302,10 +319,10 @@ int main(int argc, char** argv)
 //   new_trajectory.header.stamp = ros::Time::now();      
   
   ros::Rate sleep_timer(1.0); //1Hz update rate
-  Irb120_fwd_solver irb120_fwd_solver;
-  Irb120_IK_solver ik_solver;
+  // Irb120_fwd_solver irb120_fwd_solver;
+  // Irb120_IK_solver ik_solver;
 
-  Eigen::Affine3d A_fwd_DH;
+  // Eigen::Affine3d A_fwd_DH;
   
 //   ROS_INFO("going home");
 //   //for (int i=0;i<5;i++)
@@ -324,9 +341,9 @@ int main(int argc, char** argv)
   int nsolns=0;
   int nlayer = 0;
   qvec<<0,0,0,0,0,0;
-  findNlayerAndPathOption(can.top, x_des, path_options, nlayer);
+  findNlayerAndPathOption(path_options);
   findOptimalPath(optimal_path);
-  stuff_trajectory(new_trajectory);
+  stuff_trajectory(trajectory_point1,new_trajectory);
   // for (double x_var = can.top.point.z + 0.18; x_var < x_des; x_var += 0.01) {
   //   p[0] = x_var;
   //   p[1]=  y_des;
