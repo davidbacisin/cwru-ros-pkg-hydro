@@ -32,6 +32,7 @@ void ObjectFinder::initializePublishers() {
 	// to display in rviz
 	pubCloud = nh.advertise<sensor_msgs::PointCloud2>("/object_finder/computed_model", 1);
 	pubPcdCloud = nh.advertise<sensor_msgs::PointCloud2>("/kinect_pointcloud", 1);
+	pubCanTop = nh.advertise<geometry_msgs::PointStamped>("/can_top_position", 1);
 }
 
 void ObjectFinder::initializeServices() {
@@ -473,7 +474,16 @@ int main(int argc, char** argv) {
 	
 				// publish
 				finder.pubCloud.publish(display_cloud);
-				ROS_INFO("Can top at (%f, %f, %f)", can_center.x(), can_center.y(), can_center.z() + CAN_HEIGHT);
+				//ROS_INFO("Can top at (%f, %f, %f)", can_center.x(), can_center.y(), can_center.z() + CAN_HEIGHT);
+	
+				// publish the position of the top of the can
+				geometry_msgs::PointStamped canTopMsg;
+				canTopMsg.header.frame_id = "base_link";
+				canTopMsg.header.stamp = ros::Time::now();
+				canTopMsg.point.x = can_center.x();
+				canTopMsg.point.y = can_center.y();
+				canTopMsg.point.z = can_center.z() + CAN_HEIGHT;
+				finder.pubCanTop.publish(canTopMsg);
 
 				// reset state variables
 				process_mode = IDLE;

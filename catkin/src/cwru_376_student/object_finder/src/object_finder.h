@@ -2,6 +2,7 @@
 #define _OBJECT_FINDER_H_
 
 #include <ros/ros.h>
+#include <geometry_msgs/PointStamped.h>
 #include <sensor_msgs/PointCloud2.h> 
 #include <tf/transform_listener.h>
 #include <tf_conversions/tf_eigen.h>
@@ -44,7 +45,8 @@ public:
 	
 	// make public so external functions can use the publisher
 	ros::Publisher pubCloud,
-		pubPcdCloud;	
+		pubPcdCloud,
+		pubCanTop;	
 	pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_kinect;
 	sensor_msgs::PointCloud2ConstPtr kinect_raw;
 	bool kinect_initialized;
