@@ -116,6 +116,92 @@ void canTopCallback(const geometry_msgs::PointStamped& pt) {
   can.is_found = true;
 }
 
+void findNlayerAndPathOption(const geometry_msgs::PointStamped& canTop, double x_des, 
+  std::vector<std::vector<Eigen::VectorXd>>& path_options, int nlayer)
+{
+  for (double x_var = canTop.top.point.z + 0.18; x_var < x_des; x_var += 0.01) {
+    p[0] = x_var;
+    p[1]=  y_des;
+    p[2] = z_des;
+    a_tool_des.translation()=p;
+
+    //is this point reachable?
+    nsolns = ik_solver.ik_solve(a_tool_des); // for a specific y, the nsolns gives the number of IK solution.
+    ROS_INFO("there are %d solutions",nsolns);
+    ik_solver.get_solns(q6dof_solns);
+    // if nsolns > 0, then we put all these solution into a vector named single_layer_nodes, so that
+    // this layer only contains all the IK solution for y has a specific height
+    if (nsolns>0) {
+        Eigen::VectorXd soln_node;
+        single_layer_nodes.clear();
+        for (int isoln =0; isoln<nsolns;isoln++) {
+            soln_node = q6dof_solns[isoln]; // convert to compatible datatype, the vector q6dof_solns stores all the solution of each value of y
+            // and each element is a small vector which is composed of six joint angles
+            single_layer_nodes.push_back(soln_node); // what this vector contained is as same as soln_node, but different type
+        }
+      path_options.push_back(single_layer_nodes); // this vector will contain all the IK solution for y changing form -0,4 to 0.4
+      nlayer = path_options.size();
+      ROS_INFO("filled layer %d",nlayer);
+    }
+  }
+}
+
+void findOptimalPath(std::vector<Eigen::VectorXd>& optimal_path){
+  optimal_path.resize(nlayer);    
+  weights.resize(VECTOR_DIM);
+  for (int i=0;i<VECTOR_DIM;i++) { // default--assign all weights equal 
+      weights(i) = 1.0;
+  }
+     //do some planning:
+   cout<<"instantiating a JointSpacePlanner:"<<endl;
+   { //limit the scope of jsp here:
+     JointSpacePlanner jsp (path_options,weights);
+     cout<<"recovering the solution..."<<endl;
+     jsp.get_soln(optimal_path); // HERE we goy the OPTIMAL PATH for moving manipulator
+     // for each element optimal_path it only contains one specific IK solution while y changed
+     // so that this vector is composed of the best IK solution combination for y changing from
+     // start point to end point, which this result is obtained based on stagecoach problem
+     //double trip_cost= jsp.get_trip_cost();
+
+   }
+
+   //now, jsp is deleted, but optimal_path lives on:
+   cout<<"resulting solution path: "<<endl;
+   for (int ilayer=0;ilayer<nlayer;ilayer++) {
+       cout<<"ilayer: "<<ilayer<<" node: "<<optimal_path[ilayer].transpose()<<endl;
+   }  
+}
+
+void stuff_trajectory(trajectory_msgs::JointTrajectory &new_trajectory){
+  double dt = 0.4;
+   //t+= 5.0; // go from home to first point in N sec; for simu, this does not behave same as on actual robot;
+  for (int ilayer = 0; ilayer < nlayer; ilayer++) {
+    qvec = optimal_path[ilayer];
+    for (int ijnt=0;ijnt<6;ijnt++) {
+        trajectory_point1.positions[ijnt] = qvec[ijnt]; // put joint angles into trajectory_msgs::JointTrajectoryPoint varible
+        // trajectory_point position member function.
+    }
+    t += dt;    
+    trajectory_point1.time_from_start = ros::Duration(t);  
+    new_trajectory.points.push_back(trajectory_point1); // append another point
+    // t += dt;    
+    //trajectory_point1.time_from_start =    ros::Duration(t);   
+    //new_trajectory.points.push_back(trajectory_point1); // go home between pts
+    std::cout<<"qsoln = "<<qvec.transpose()<<std::endl;
+    A_fwd_DH = irb120_fwd_solver.fwd_kin_solve(qvec); //fwd_kin_solve
+
+    std::cout << "A rot: " << std::endl;
+    std::cout << A_fwd_DH.linear() << std::endl;
+    std::cout << "A origin: " << A_fwd_DH.translation().transpose() << std::endl;      
+  }
+  
+
+  int npts = new_trajectory.points.size(); 
+  int njnts = new_trajectory.points[0].positions.size();
+  ROS_INFO("sending a trajectory with %d poses, each with %d joints ",npts,njnts);
+
+
+}
 
 int main(int argc, char** argv) 
 {
@@ -232,91 +318,96 @@ int main(int argc, char** argv)
 //   new_trajectory.points.clear();
 //   // start from home pose
 //   new_trajectory.points.push_back(trajectory_point1); // add this single trajectory point to the trajectory vector   
-//   new_trajectory.header.stamp = ros::Time::now();        
+  new_trajectory.header.stamp = ros::Time::now();        
 //   // now see about multiple solutions:
-
-  qvec<<0,0,0,0,0,0;
+  
   int nsolns=0;
   int nlayer = 0;
-  for (double x_var = can.top.point.z + 0.18; x_var < x_des; x_var += 0.01) {
-    p[0] = x_var;
-    p[1]=  y_des;
-    p[2] = z_des;
-    a_tool_des.translation()=p;
+  qvec<<0,0,0,0,0,0;
+  findNlayerAndPathOption(can.top, x_des, path_options, nlayer);
+  findOptimalPath(optimal_path);
+  stuff_trajectory(new_trajectory);
+  // for (double x_var = can.top.point.z + 0.18; x_var < x_des; x_var += 0.01) {
+  //   p[0] = x_var;
+  //   p[1]=  y_des;
+  //   p[2] = z_des;
+  //   a_tool_des.translation()=p;
 
-    //is this point reachable?
-    nsolns = ik_solver.ik_solve(a_tool_des); // for a specific y, the nsolns gives the number of IK solution.
-    ROS_INFO("there are %d solutions",nsolns);
-    ik_solver.get_solns(q6dof_solns);
-    // if nsolns > 0, then we put all these solution into a vector named single_layer_nodes, so that
-    // this layer only contains all the IK solution for y has a specific height
-    if (nsolns>0) {
-        Eigen::VectorXd soln_node;
-        single_layer_nodes.clear();
-        for (int isoln =0; isoln<nsolns;isoln++) {
-            soln_node = q6dof_solns[isoln]; // convert to compatible datatype, the vector q6dof_solns stores all the solution of each value of y
-            // and each element is a small vector which is composed of six joint angles
-            single_layer_nodes.push_back(soln_node); // what this vector contained is as same as soln_node, but different type
-        }
-      path_options.push_back(single_layer_nodes); // this vector will contain all the IK solution for y changing form -0,4 to 0.4
-      nlayer = path_options.size();
-      ROS_INFO("filled layer %d",nlayer);
-    }
-  }
+  //   //is this point reachable?
+  //   nsolns = ik_solver.ik_solve(a_tool_des); // for a specific y, the nsolns gives the number of IK solution.
+  //   ROS_INFO("there are %d solutions",nsolns);
+  //   ik_solver.get_solns(q6dof_solns);
+  //   // if nsolns > 0, then we put all these solution into a vector named single_layer_nodes, so that
+  //   // this layer only contains all the IK solution for y has a specific height
+  //   if (nsolns>0) {
+  //       Eigen::VectorXd soln_node;
+  //       single_layer_nodes.clear();
+  //       for (int isoln =0; isoln<nsolns;isoln++) {
+  //           soln_node = q6dof_solns[isoln]; // convert to compatible datatype, the vector q6dof_solns stores all the solution of each value of y
+  //           // and each element is a small vector which is composed of six joint angles
+  //           single_layer_nodes.push_back(soln_node); // what this vector contained is as same as soln_node, but different type
+  //       }
+  //     path_options.push_back(single_layer_nodes); // this vector will contain all the IK solution for y changing form -0,4 to 0.4
+  //     nlayer = path_options.size();
+  //     ROS_INFO("filled layer %d",nlayer);
+  //   }
+  // }
 
-  optimal_path.resize(nlayer);    
-  weights.resize(VECTOR_DIM);
-  for (int i=0;i<VECTOR_DIM;i++) { // default--assign all weights equal 
-      weights(i) = 1.0;
-  }
-     //do some planning:
-   cout<<"instantiating a JointSpacePlanner:"<<endl;
-   { //limit the scope of jsp here:
-     JointSpacePlanner jsp (path_options,weights);
-     cout<<"recovering the solution..."<<endl;
-     jsp.get_soln(optimal_path); // HERE we goy the OPTIMAL PATH for moving manipulator
-     // for each element optimal_path it only contains one specific IK solution while y changed
-     // so that this vector is composed of the best IK solution combination for y changing from
-     // start point to end point, which this result is obtained based on stagecoach problem
-     //double trip_cost= jsp.get_trip_cost();
+  // optimal_path.resize(nlayer);    
+  // weights.resize(VECTOR_DIM);
+  // for (int i=0;i<VECTOR_DIM;i++) { // default--assign all weights equal 
+  //     weights(i) = 1.0;
+  // }
+  //    //do some planning:
+  //  cout<<"instantiating a JointSpacePlanner:"<<endl;
+  //  { //limit the scope of jsp here:
+  //    JointSpacePlanner jsp (path_options,weights);
+  //    cout<<"recovering the solution..."<<endl;
+  //    jsp.get_soln(optimal_path); // HERE we goy the OPTIMAL PATH for moving manipulator
+  //    // for each element optimal_path it only contains one specific IK solution while y changed
+  //    // so that this vector is composed of the best IK solution combination for y changing from
+  //    // start point to end point, which this result is obtained based on stagecoach problem
+  //    //double trip_cost= jsp.get_trip_cost();
 
-   }
+  //  }
 
-   //now, jsp is deleted, but optimal_path lives on:
-   cout<<"resulting solution path: "<<endl;
-   for (int ilayer=0;ilayer<nlayer;ilayer++) {
-       cout<<"ilayer: "<<ilayer<<" node: "<<optimal_path[ilayer].transpose()<<endl;
-   }        
-
- 
+  //  //now, jsp is deleted, but optimal_path lives on:
+  //  cout<<"resulting solution path: "<<endl;
+  //  for (int ilayer=0;ilayer<nlayer;ilayer++) {
+  //      cout<<"ilayer: "<<ilayer<<" node: "<<optimal_path[ilayer].transpose()<<endl;
+  //  }        
 
   // try to execute the plan:
-  double dt = 0.4;
-   //t+= 5.0; // go from home to first point in N sec; for simu, this does not behave same as on actual robot;
-  for (int ilayer = 0; ilayer < nlayer; ilayer++) {
-    qvec = optimal_path[ilayer];
-    for (int ijnt=0;ijnt<6;ijnt++) {
-        trajectory_point1.positions[ijnt] = qvec[ijnt]; // put joint angles into trajectory_msgs::JointTrajectoryPoint varible
-        // trajectory_point position member function.
-    }
-    t += dt;    
-    trajectory_point1.time_from_start =    ros::Duration(t);  
-    new_trajectory.points.push_back(trajectory_point1); // append another point
-    // t += dt;    
-    //trajectory_point1.time_from_start =    ros::Duration(t);   
-    //new_trajectory.points.push_back(trajectory_point1); // go home between pts
-    std::cout<<"qsoln = "<<qvec.transpose()<<std::endl;
-    A_fwd_DH = irb120_fwd_solver.fwd_kin_solve(qvec); //fwd_kin_solve
+  // double dt = 0.4;
+  //  //t+= 5.0; // go from home to first point in N sec; for simu, this does not behave same as on actual robot;
+  // for (int ilayer = 0; ilayer < nlayer; ilayer++) {
+  //   qvec = optimal_path[ilayer];
+  //   for (int ijnt=0;ijnt<6;ijnt++) {
+  //       trajectory_point1.positions[ijnt] = qvec[ijnt]; // put joint angles into trajectory_msgs::JointTrajectoryPoint varible
+  //       // trajectory_point position member function.
+  //   }
+  //   t += dt;    
+  //   trajectory_point1.time_from_start = ros::Duration(t);  
+  //   new_trajectory.points.push_back(trajectory_point1); // append another point
+  //   // t += dt;    
+  //   //trajectory_point1.time_from_start =    ros::Duration(t);   
+  //   //new_trajectory.points.push_back(trajectory_point1); // go home between pts
+  //   std::cout<<"qsoln = "<<qvec.transpose()<<std::endl;
+  //   A_fwd_DH = irb120_fwd_solver.fwd_kin_solve(qvec); //fwd_kin_solve
 
-    std::cout << "A rot: " << std::endl;
-    std::cout << A_fwd_DH.linear() << std::endl;
-    std::cout << "A origin: " << A_fwd_DH.translation().transpose() << std::endl;      
-  }
+  //   std::cout << "A rot: " << std::endl;
+  //   std::cout << A_fwd_DH.linear() << std::endl;
+  //   std::cout << "A origin: " << A_fwd_DH.translation().transpose() << std::endl;      
+  // }
   
 
-  int npts = new_trajectory.points.size(); 
-  int njnts = new_trajectory.points[0].positions.size();
-  ROS_INFO("sending a trajectory with %d poses, each with %d joints ",npts,njnts);
+  // int npts = new_trajectory.points.size(); 
+  // int njnts = new_trajectory.points[0].positions.size();
+  // ROS_INFO("sending a trajectory with %d poses, each with %d joints ",npts,njnts);
+
+
+
+
 
   pub.publish(new_trajectory);
   ros::spinOnce();
