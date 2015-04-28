@@ -54,6 +54,7 @@ void jointStateCallback(const sensor_msgs::JointStatePtr& jt) {
 		}
 	}
 	arm.joint_states = *jt;
+	ROS_INFO("stored joint states size", arm.joint_states.position.size());
 }
 
 int main(int argc, char **argv) {
@@ -146,11 +147,33 @@ int main(int argc, char **argv) {
 				// go to next step
 				mode = CARTESIAN_DESCENT;
 				break;
-			case CARTESIAN_DESCENT:
+			case CARTESIAN_DESCENT: {
+				// call  service
+				cwru_srv::simple_int_service_messageRequest req;
+				cwru_srv::simple_int_service_messageResponse resp;
+				
+				req.req = 1; // 
+				if (!ros::service::call("X", req, resp)) {
+					ROS_WARN("X service not successful. Is beta_cartesian_motion running?");
+					mode = IDLE;
+					break;
+				}
+				arm.is_moving = true;
+
+				// wait until it's there
+				while (arm.is_moving && ros::ok()) {
+					ros::spinOnce();
+					ros::Duration(0.5).sleep();
+				}
+				// great! we have the can position
+				ROS_INFO("Arm has descended");
 				// go to next step
-				mode = CARTESIAN_DESCENT;
+				mode = CLOSE_HAND;
 				break;
+			}
 			case CLOSE_HAND:
+				// wait a bit (until we get the hand controller code)
+				ros::Duration(5.0).sleep();
 				// go to next step
 				mode = CARTESIAN_ASCENT;
 				break;

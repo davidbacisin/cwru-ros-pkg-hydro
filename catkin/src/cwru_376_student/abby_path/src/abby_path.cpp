@@ -5,7 +5,8 @@
 
 AbbyPathPlanner::AbbyPathPlanner(ros::NodeHandle& nh):
 	nh_p(&nh),
-	im_server("path_marker") {
+	im_server("path_marker"),
+	dest_trigger(0) {
 	// create the publisher
 	segment_pub = nh.advertise<geometry_msgs::PointStamped>("path_planner", 1);
 	// create and broadcast the service
@@ -14,7 +15,7 @@ AbbyPathPlanner::AbbyPathPlanner(ros::NodeHandle& nh):
 	// subscribe to odom
 	std::string odom_topic;
 	if (!nh.getParam("/odom_topic", odom_topic)) {
-		ROS_WARN("path_planner needs ROS param /odom_topic");
+		ROS_WARN("abby_path needs ROS param /odom_topic");
 		return;
 	}
 	odom_subscriber = nh.subscribe(odom_topic, 1, &AbbyPathPlanner::odomCallback, this);
@@ -50,17 +51,26 @@ void AbbyPathPlanner::initializeInteractiveMarker() {
     im.name = "desired_position"; //name the marker
     im.description = "Abby Path Interactive Marker";
      
-    geometry_msgs::Point temp_point_start;
+    geometry_msgs::Point temp_point_start,
+			 temp_point;
     /** specify/push-in the origin for this marker */
     temp_point_start.x = 0.38; 
     temp_point_start.y = 0.0;
     temp_point_start.z = 0.67;
 
-    // create an arrow marker; do this 3 times to create a triad (frame)
-    visualization_msgs::Marker arrow_marker_x; //this one for the x axis
-    geometry_msgs::Point temp_point;
-
+    // create an arrow marker for x axis
+    visualization_msgs::Marker arrow_marker_x;
     arrow_marker_x.type = visualization_msgs::Marker::ARROW;
+    arrow_marker_x.scale.x = 0.01;
+    arrow_marker_x.scale.y = 0.01;
+    arrow_marker_x.scale.z = 0.01;
+    arrow_marker_x.color.r = 1.0; // red, for the x axis
+    arrow_marker_x.color.g = 0.0;
+    arrow_marker_x.color.b = 0.0;
+    arrow_marker_x.color.a = 1.0;
+    im_control.markers.push_back(arrow_marker_x);
+
+    /*
     // specify/push-in the origin point for the arrow 
     temp_point.x = temp_point.y = temp_point.z = 0;
     arrow_marker_x.points.push_back(temp_point);
@@ -68,41 +78,31 @@ void AbbyPathPlanner::initializeInteractiveMarker() {
     temp_point = temp_point_start;
     temp_point.x = 0.2; // arrow is this long in x direction
     arrow_marker_x.points.push_back(temp_point);
-
-    // make the arrow very thin
-    arrow_marker_x.scale.x = 0.01;
-    arrow_marker_x.scale.y = 0.01;
-    arrow_marker_x.scale.z = 0.01;
-
-    arrow_marker_x.color.r = 1.0; // red, for the x axis
-    arrow_marker_x.color.g = 0.0;
-    arrow_marker_x.color.b = 0.0;
-    arrow_marker_x.color.a = 1.0;
+    */
 
     // do this again for the y axis:
     visualization_msgs::Marker arrow_marker_y;
     arrow_marker_y.type = visualization_msgs::Marker::ARROW; 
+    arrow_marker_y.scale.x = 0.01;
+    arrow_marker_y.scale.y = 0.01;
+    arrow_marker_y.scale.z = 0.01;
+    arrow_marker_y.color.r = 0.0;
+    arrow_marker_y.color.g = 1.0; // green, for y axis
+    arrow_marker_y.color.b = 0.0;
+    arrow_marker_y.color.a = 1.0;
+    im_control.markers.push_back(arrow_marker_y);
+
+    /*
     // Push in the origin point for the arrow 
     temp_point.x = temp_point.y = temp_point.z = 0;
     arrow_marker_y.points.push_back(temp_point);
     // Push in the end point for the arrow 
     temp_point.y = 0.2; // points in the y direction
     arrow_marker_y.points.push_back(temp_point);
+    */
 
-    arrow_marker_y.scale.x = 0.01;
-    arrow_marker_y.scale.y = 0.01;
-    arrow_marker_y.scale.z = 0.01;
-
-    arrow_marker_y.color.r = 0.0;
-    arrow_marker_y.color.g = 1.0; // color it green, for y axis
-    arrow_marker_y.color.b = 0.0;
-    arrow_marker_y.color.a = 1.0;
-
-    // create a control that contains the markers
+    // set up the control that contains the markers
     im_control.always_visible = true;
-    
-    im_control.markers.push_back(arrow_marker_x);
-    im_control.markers.push_back(arrow_marker_y);
     
     // add the control to the interactive marker
     im.controls.push_back(im_control);
@@ -110,6 +110,7 @@ void AbbyPathPlanner::initializeInteractiveMarker() {
     // create a control that will move the marker
     im_translate_x.name = "move_x";
     im_translate_x.interaction_mode = visualization_msgs::InteractiveMarkerControl::MOVE_AXIS;
+    im.controls.push_back(im_translate_x); 
 
     /** Create the Y-Axis Control*/
     im_translate_y.name = "move_y";
@@ -117,13 +118,10 @@ void AbbyPathPlanner::initializeInteractiveMarker() {
     im_translate_y.orientation.x = 0; //point this in the y direction
     im_translate_y.orientation.y = 0;
     im_translate_y.orientation.z = 1;
-    im_translate_y.orientation.w = 1;
-
-    // add the controls to the interactive marker
-    im.controls.push_back(im_translate_x);    
+    im_translate_y.orientation.w = 1;  
     im.controls.push_back(im_translate_y);
     
-    /** Scale Down: this makes all of the arrows/disks for the user controls smaller than the default size */
+    // Scale Down: this makes all of the arrows/disks for the user controls smaller than the default size
     im.scale = 0.2;
     
     //let's pre-position the marker, else it will show up at the frame origin by default
@@ -198,6 +196,8 @@ PathSegment* AbbyPathPlanner::nextSegment(){
 		ROS_WARN("No more path segments!");
 		return NULL;
 	}
+	// reset the trigger
+	dest_trigger = 0;
 	// transform from map to odom space using most recent data
 	/*	
 	geometry_msgs::PointStamped map, odom_point;
