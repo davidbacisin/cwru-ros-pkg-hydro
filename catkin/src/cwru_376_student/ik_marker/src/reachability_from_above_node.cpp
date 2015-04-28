@@ -118,9 +118,9 @@ int main(int argc, char **argv) {
     // t_des << 0,1,0;
     // b_des = n_des.cross(t_des);
 
-    b_des<<1,0,0;
-    t_des<<0,1,0;
-    n_des = t_des.cross(b_des);
+    b_des<<1,0,0; // projection on x axis of base_link
+    t_des<<0,1,0; // projection on y axis of base_link
+    n_des = t_des.cross(b_des); // projection on z axis of base_link, point to negative direction wrt z axis of base_link
 
     Eigen::Matrix3d R_des;
     R_des.col(0) = n_des;

@@ -17,12 +17,16 @@
 #include <vector>
 
 #include <ros/ros.h> //ALWAYS need to include this
-
+#include <visualization_msgs/Marker.h>
+#include <geometry_msgs/Point.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <tf/transform_listener.h>
 //message types used in this example code;  include more message types, as needed
 #include <std_msgs/Bool.h> 
 #include <std_msgs/Float32.h>
-
+#include <interactive_markers/interactive_marker_server.h>
 #include <cwru_srv/simple_bool_service_message.h> // this is a pre-defined service message, contained in shared "cwru_srv" package
+#include <Eigen/Eigen>
 
 #include "trajectory_msgs/JointTrajectory.h"
 #include "trajectory_msgs/JointTrajectoryPoint.h"
@@ -78,14 +82,14 @@ void markerListenerCB(const visualization_msgs::InteractiveMarkerFeedbackConstPt
 // function: used to get the current joint angle, so that we can
 // use these current value to make abby moving from current position
 // to the next position
-void jointStateCB(const sensor_msgs::JointStatePtr &js_msg) {
+// void jointStateCB(const sensor_msgs::JointStatePtr &js_msg) {
     
-    for (int i=0;i<6;i++) {
-        g_q_state[i] = js_msg->position[i];
-    }
-    //cout<<"g_q_state: "<<g_q_state.transpose()<<endl;
+//     for (int i=0;i<6;i++) {
+//         g_q_state[i] = js_msg->position[i];
+//     }
+//     //cout<<"g_q_state: "<<g_q_state.transpose()<<endl;
     
-}
+// }
 
 bool triggerService(cwru_srv::simple_bool_service_messageRequest& request, cwru_srv::simple_bool_service_messageResponse& response)
 {
@@ -101,6 +105,17 @@ bool triggerService(cwru_srv::simple_bool_service_messageRequest& request, cwru_
     return true;
 }
 
+// can data and callback
+struct {
+  bool is_found;
+  geometry_msgs::PointStamped top;
+  ros::Subscriber subscriber; 
+} can;
+void canTopCallback(const geometry_msgs::PointStamped& pt) {
+  can.top = pt;
+  can.is_found = true;
+}
+
 
 int main(int argc, char** argv) 
 {
@@ -110,9 +125,10 @@ int main(int argc, char** argv)
   ros::NodeHandle nh; // create a node handle; need to pass this to the class constructor
   
   ros::Publisher pub = nh.advertise<trajectory_msgs::JointTrajectory>("joint_path_command", 1);
-  ros::Subscriber sub_js = nh.subscribe("/joint_states",1,jointStateCB);
+  // ros::Subscriber sub_js = nh.subscribe("/joint_states",1,jointStateCB);
   ros::Subscriber sub_im = nh.subscribe("example_marker/feedback", 1, markerListenerCB);
   ros::ServiceServer service = nh.advertiseService("move_trigger", triggerService);
+  can.subscriber = nh.subscribe("/can_top_position", 1, canTopCallback);
 
   Eigen::Vector3d p;
   Eigen::Vector3d n_des,t_des,b_des;
@@ -124,24 +140,6 @@ int main(int argc, char** argv)
   std::vector<Eigen::VectorXd> optimal_path;
   Eigen::VectorXd weights;
   
-  // desired position the gripper should go
-  z_des = 0.3;
-  x_des = 0.4;
-  y_des = 0.45;
-
-  // desired orientation the flange should keep
-  n_des << 1,0,0;
-  t_des << 0,1,0;
-  b_des = n_des.cross(t_des);
-  
-  Eigen::Matrix3d R_des;
-  R_des.col(0) = n_des;
-  R_des.col(1) = t_des;
-  R_des.col(2) = b_des;
-  
-	Eigen::Affine3d a_tool_des; // expressed in DH frame
-	a_tool_des.linear() = R_des;
-
   bool tf_is_initialized = false;
   g_tf = new tf::TransformListener(nh);
   while (!tf_is_initialized) {
@@ -156,22 +154,51 @@ int main(int argc, char** argv)
       ros::Duration(0.5).sleep();
     }
   }
+  // desired position the gripper should go
+  x_des = g_p[0];
+  y_des = g_p[1];
+  z_des = g_p[2];
+  // z_des = 0.3;
+  // x_des = 0.4;
+  // y_des = 0.45;
+
+  // desired orientation the flange should keep, n:=x, t:=y, b:=z
+  n_des<<1,0,0; // projection on x axis of link1
+  t_des<<0,1,0; // projection on y axis of link1
+  b_des = n_des.cross(t_des); // projection on z axis of link1
+
+  Eigen::Matrix3d R_des;
+  R_des.col(0) = n_des;
+  R_des.col(1) = t_des;
+  R_des.col(2) = b_des;
+  // n_des << 1,0,0;
+  // t_des << 0,1,0;
+  // b_des = n_des.cross(t_des);
   
+  // Eigen::Matrix3d R_des;
+  // R_des.col(0) = n_des;
+  // R_des.col(1) = t_des;
+  // R_des.col(2) = b_des;
+  
+	Eigen::Affine3d a_tool_des; // expressed in DH frame
+	a_tool_des.linear() = R_des;
+
 //   //ros::Rate sleep_timer(UPDATE_RATE); //a timer for desired rate to send new traj points as commands
-//   trajectory_msgs::JointTrajectory new_trajectory; // an empty trajectory
-//   trajectory_msgs::JointTrajectoryPoint trajectory_point1;
+  trajectory_msgs::JointTrajectory new_trajectory; // an empty trajectory
+
+  trajectory_msgs::JointTrajectoryPoint trajectory_point1;
 //   trajectory_msgs::JointTrajectoryPoint trajectory_point2; 
 //   // build an example trajectory:
-//   trajectory_point1.positions.clear();    
+  trajectory_point1.positions.clear();    
 //   trajectory_point2.positions.clear();  
   
-//   new_trajectory.points.clear();
-//   new_trajectory.joint_names.push_back("joint_1");
-//   new_trajectory.joint_names.push_back("joint_2");
-//   new_trajectory.joint_names.push_back("joint_3");
-//   new_trajectory.joint_names.push_back("joint_4");
-//   new_trajectory.joint_names.push_back("joint_5");
-//   new_trajectory.joint_names.push_back("joint_6");   
+  new_trajectory.points.clear();
+  new_trajectory.joint_names.push_back("joint_1");
+  new_trajectory.joint_names.push_back("joint_2");
+  new_trajectory.joint_names.push_back("joint_3");
+  new_trajectory.joint_names.push_back("joint_4");
+  new_trajectory.joint_names.push_back("joint_5");
+  new_trajectory.joint_names.push_back("joint_6");   
   
 //   //specify two points: initially, all home angles
 //   for (int ijnt=0;ijnt<6;ijnt++) {
@@ -180,7 +207,7 @@ int main(int argc, char** argv)
 //       trajectory_point2.positions.push_back(0.0); // stuff in position commands for 6 joints        
 //   }
 //   //ros::Duration t_from_start(0); //initialize duration to 0
-//   double t=0.0;
+  double t=0.0;
 //   //double dt = 3;          
 //   trajectory_point1.time_from_start =    ros::Duration(0);   
 //   //trajectory_point2.time_from_start =    ros::Duration(2);  
@@ -188,11 +215,11 @@ int main(int argc, char** argv)
 //   //new_trajectory.points.push_back(trajectory_point2); // add this single trajectory point to the trajectory vector      
 //   new_trajectory.header.stamp = ros::Time::now();      
   
-//   ros::Rate sleep_timer(1.0); //1Hz update rate
-//   Irb120_fwd_solver irb120_fwd_solver;
-//   Irb120_IK_solver ik_solver;
+  ros::Rate sleep_timer(1.0); //1Hz update rate
+  Irb120_fwd_solver irb120_fwd_solver;
+  Irb120_IK_solver ik_solver;
 
-//   Eigen::Affine3d A_fwd_DH;
+  Eigen::Affine3d A_fwd_DH;
   
 //   ROS_INFO("going home");
 //   //for (int i=0;i<5;i++)
@@ -211,9 +238,9 @@ int main(int argc, char** argv)
   qvec<<0,0,0,0,0,0;
   int nsolns=0;
   int nlayer = 0;
-  for (double x_var = -0.4; x_var<0.4; x_var+=0.01) {
-    p[0] = x_des;
-    p[1]=  y_var;
+  for (double x_var = can.top.point.z + 0.18; x_var < x_des; x_var += 0.01) {
+    p[0] = x_var;
+    p[1]=  y_des;
     p[2] = z_des;
     a_tool_des.translation()=p;
 
@@ -269,12 +296,12 @@ int main(int argc, char** argv)
   for (int ilayer = 0; ilayer < nlayer; ilayer++) {
     qvec = optimal_path[ilayer];
     for (int ijnt=0;ijnt<6;ijnt++) {
-        trajectory_point2.positions[ijnt] = qvec[ijnt]; // put joint angles into trajectory_msgs::JointTrajectoryPoint varible
+        trajectory_point1.positions[ijnt] = qvec[ijnt]; // put joint angles into trajectory_msgs::JointTrajectoryPoint varible
         // trajectory_point position member function.
     }
     t += dt;    
-    trajectory_point2.time_from_start =    ros::Duration(t);  
-    new_trajectory.points.push_back(trajectory_point2); // append another point
+    trajectory_point1.time_from_start =    ros::Duration(t);  
+    new_trajectory.points.push_back(trajectory_point1); // append another point
     // t += dt;    
     //trajectory_point1.time_from_start =    ros::Duration(t);   
     //new_trajectory.points.push_back(trajectory_point1); // go home between pts
