@@ -198,27 +198,9 @@ PathSegment* AbbyPathPlanner::nextSegment(){
 	}
 	// reset the trigger
 	dest_trigger = 0;
-	// transform from map to odom space using most recent data
-	/*	
-	geometry_msgs::PointStamped map, odom_point;
-		map.header.frame_id = "map";
-		map.header.stamp = ros::Time::now();
-		map.point.x = path_x[path_index];
-		map.point.y = path_y[path_index];
-		map.point.z = 0.0;
-	try {
-		tf_p->transformPoint("odom", map, odom_point);
-	}
-	catch (tf::TransformException& exception) {
-		ROS_ERROR("%s", exception.what());
-	}
-	*/
-	// get the transformed destination coordinates
-	double dest_x = g_dest_point.x,
-		   dest_y = g_dest_point.y;
 	// find the distance between our current position and our destination
-	double dx = dest_x - current_pose.pose.position.x,
-		   dy = dest_y - current_pose.pose.position.y;
+	double dx = g_dest_point.x,
+		   dy = g_dest_point.y;
 	double length = sqrt(dx*dx + dy*dy);
 	// find the angle between our current orientation and our destination
 	/*
@@ -241,7 +223,6 @@ PathSegment* AbbyPathPlanner::nextSegment(){
 		   px = 2*qw*qw - 1,
 		   py = 2*qz*qw;
 	if (length < 0.1) { // don't bother. Just go to the next path index.
-		// path_index++;
 		return NULL;
 	}
 
@@ -250,8 +231,6 @@ PathSegment* AbbyPathPlanner::nextSegment(){
 	ROS_INFO("Pre-segment h=%f, l=%f", heading, length);
 	if (heading < 0.15) { // if our angle is approximately zero, then we can go straight
 		heading = 0.0;
-		// we should have reached our destination once this segment is done. Go to the next point.
-		// path_index++;
 	}
 	else {
 		// determine which direction to head
