@@ -312,7 +312,7 @@ void BetaInterfaceClass::moveABBY () {
                 //qvec = q6dof_solns[0];
                 // defining a joint limits vector for joint 0 and joint 1, such that each joint is specified within a range of motion
                 std::vector<double> jointLimits {0,-M_PI,-M_PI/2,M_PI/6};
-                std::vector<int> weight{1,1,1,7,5,1}; //defining a weight vector
+                std::vector<int> weight{8,1,1,7,5,1}; //defining a weight vector
                 double sum;
                 double minimum = 1e6;
                 int bestikSoluNo = 0;
@@ -320,8 +320,8 @@ void BetaInterfaceClass::moveABBY () {
                 // Once nsolns > 0, choose a IK solution both meet  the specified joint limit and the weight requirement
                 for (int i = 0; i < q6dof_solns.size(); ++i){
                     oneIkSolu = q6dof_solns[i];
-                    if (oneIkSolu[0] < jointLimits[0] && oneIkSolu[0] > jointLimits[1] 
-                        && oneIkSolu[1] < jointLimits[3] && oneIkSolu[1] > jointLimits[2]) {
+                    if (/*oneIkSolu[0] < jointLimits[0] && oneIkSolu[0] > jointLimits[1] 
+                        && oneIkSolu[1] < jointLimits[3] && oneIkSolu[1] > jointLimits[2]*/ true) {
                         sum = 0;
                         for (int ijnt = 0; ijnt < 6; ++ijnt){
                             sum = sum + oneIkSolu[ijnt] * weight[ijnt];

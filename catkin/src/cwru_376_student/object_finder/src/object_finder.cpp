@@ -3,8 +3,8 @@
 #define CAN_HEIGHT	0.12
 #define CAN_RADIUS	0.035
 
-#define KINECT_FRAME "kinect_pc_frame"
-// #define KINECT_FRAME "camera_depth_optical_frame"
+// #define KINECT_FRAME "kinect_pc_frame"
+#define KINECT_FRAME "camera_depth_optical_frame"
 
 // track the current process mode
 ProcessMode process_mode = IDLE;

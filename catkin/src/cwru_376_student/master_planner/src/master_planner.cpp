@@ -50,11 +50,10 @@ void jointStateCallback(const sensor_msgs::JointStatePtr& jt) {
 	arm.is_moving = false;
 	if (arm.joint_states.position.size()) {
 		for (int i = 0; i < jt->position.size(); i++) {
-			arm.is_moving = arm.is_moving || (fabs(arm.joint_states.position[i] - jt->position[i]) < 0.01);
+			arm.is_moving = arm.is_moving || (fabs(arm.joint_states.position[i] - jt->position[i]) > 1e-5);
 		}
 	}
 	arm.joint_states = *jt;
-	ROS_INFO("stored joint states size", arm.joint_states.position.size());
 }
 
 int main(int argc, char **argv) {
@@ -65,10 +64,15 @@ int main(int argc, char **argv) {
 	ros::ServiceServer master_service = nh.advertiseService("master_planner", masterPlannerCallback);
 	can.subscriber = nh.subscribe("/can_top_position", 1, canTopCallback);
 	arm.point_publisher = nh.advertise<visualization_msgs::InteractiveMarkerFeedback>("example_marker/feedback", 1);
+	arm.joint_subscriber = nh.subscribe("/joint_states", 1, jointStateCallback);
 	arm.is_moving = false;
 
 	// calculate the desired rotation of the hand
-	Eigen::Quaterniond hand_angle(0.0, 1.0, 0.0, 1.0);
+	Eigen::Matrix3d rotation;
+	rotation << 0.0, 0.0, 1.0,
+		    0.0, 1.0, 0.0,
+		    -1.0, 0.0, 0.0;
+	Eigen::Quaterniond hand_angle(rotation);
 	hand_angle.normalize();
 	ROS_INFO("angle %f, %f, %f, %f", hand_angle.x(), hand_angle.y(), hand_angle.z(), hand_angle.w());
 
@@ -95,8 +99,9 @@ int main(int argc, char **argv) {
 				}
 				// great! we have the can position
 				ROS_INFO("Can top found at (%f, %f, %f)", can.top.point.x, can.top.point.y, can.top.point.z);
-				// go to next step				
-				mode = APPROACH_POSITION;
+				// go to next step if data is good
+				if (!isnan(can.top.point.x) && !isnan(can.top.point.y))
+					mode = APPROACH_POSITION;
 				break;
 			}
 			case APPROACH_POSITION: {
@@ -123,7 +128,7 @@ int main(int argc, char **argv) {
 				cwru_srv::simple_bool_service_messageRequest req;
 				cwru_srv::simple_bool_service_messageResponse resp;
 		
-				req.req = true;
+				req.req = 1;
 				if (!ros::service::call("move_trigger", req, resp)) {
 					ROS_WARN("move_trigger service not successful. Is beta_irb120_im_interface running?");
 					mode = IDLE;
@@ -131,9 +136,10 @@ int main(int argc, char **argv) {
 				}
 
 				// wait until it's there
+				ros::Duration(2.0).sleep();
 				while (arm.is_moving && ros::ok()) {
 					ros::spinOnce();
-					ros::Duration(0.5).sleep();
+					ros::Duration(0.1).sleep();
 				}
 				ROS_INFO("Arm is in approach position");
 			
@@ -144,11 +150,12 @@ int main(int argc, char **argv) {
 			case OPEN_HAND:
 				ROS_INFO("Opening hand");
 				// go to next step
+				//mode = IDLE;
 				mode = CARTESIAN_DESCENT;
 				break;
 			case CARTESIAN_DESCENT: {
 				// send arm to the approach position
-				visualization_msgs::InteractiveMarkerFeedback dest;
+				/*visualization_msgs::InteractiveMarkerFeedback dest;
 				dest.header.frame_id = "base_link";
 				dest.header.stamp = ros::Time::now();
 				dest.client_id = "master_planner_marker";
@@ -172,18 +179,39 @@ int main(int argc, char **argv) {
 					// update the desired position
 					dest.header.stamp = ros::Time::now();
 					dest.pose.position.z = can.top.point.z + offset;
+					// publish
+					arm.is_moving = true;
+					arm.point_publisher.publish(dest);
 					// go
 					if (!ros::service::call("move_trigger", req, resp)) {
-						ROS_WARN("move_trigger service not successful. Is beta_irb120_im_interface running?");
+						ROS_WARN("move_trigger service not successful. Is beta_irb120 running?");
 						mode = IDLE;
 						break;
 					}
 					// wait until it's there
 					arm.is_moving = true;
+					ros::Duration(0.11).sleep();
 					while (arm.is_moving && ros::ok()) {
 						ros::spinOnce();
 						ros::Duration(0.1).sleep();
 					}
+				}*/
+
+				cwru_srv::simple_int_service_messageRequest req;
+				cwru_srv::simple_int_service_messageResponse resp;
+				req.req = 1;
+				// go
+				if (!ros::service::call("cartesian_trigger", req, resp)) {
+					ROS_WARN("cartesian_trigger service not successful. Is beta_cartesian_motion running?");
+					mode = IDLE;
+					break;
+				}
+				// wait until it's there
+				arm.is_moving = true;
+				ros::Duration(2.0).sleep();
+				while (arm.is_moving && ros::ok()) {
+					ros::spinOnce();
+					ros::Duration(0.1).sleep();
 				}
 
 				// great! we have the can position
@@ -199,8 +227,30 @@ int main(int argc, char **argv) {
 				// go to next step
 				mode = CARTESIAN_ASCENT;
 				break;
-			case CARTESIAN_ASCENT:
+			case CARTESIAN_ASCENT: {
+				cwru_srv::simple_int_service_messageRequest req;
+				cwru_srv::simple_int_service_messageResponse resp;
+				req.req = -1;
+				// go
+				if (!ros::service::call("cartesian_trigger", req, resp)) {
+					ROS_WARN("cartesian_trigger service not successful. Is beta_cartesian_motion running?");
+					mode = IDLE;
+					break;
+				}
+				// wait until it's there
+				arm.is_moving = true;
+				ros::Duration(2.0).sleep();
+				while (arm.is_moving && ros::ok()) {
+					ros::spinOnce();
+					ros::Duration(0.1).sleep();
+				}
+
+				// great! we have the can position
+				ROS_INFO("Arm has ascended");
+				// got to next step
+				mode = IDLE;
 				break;
+			}
 			case IDLE:
 			default:
 				break; // do nothing	

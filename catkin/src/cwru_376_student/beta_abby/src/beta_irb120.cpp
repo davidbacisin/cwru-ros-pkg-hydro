@@ -175,7 +175,9 @@ bool BetaInterfaceClass::triggerService(cwru_srv::simple_int_service_messageRequ
 //command robot to move to "qvec" using a trajectory message, sent via ROS-I
 void BetaInterfaceClass::stuff_trajectory(Vectorq6x1 p, Vectorq6x1 q, double c, trajectory_msgs::JointTrajectory &new_trajectory) {
     // base the number of intermediate point off the distance between the vectors
-    int interpolation_amount = (p - q).norm() * 0.1;
+    int interpolation_amount = (p - q).norm() * 10.0;
+    if (interpolation_amount < 5)
+	interpolation_amount = 5;
     ROS_INFO("Interpolating to %d intermediate points", interpolation_amount);
 
     // declaring 25-element vector object
