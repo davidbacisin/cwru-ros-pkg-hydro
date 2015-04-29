@@ -424,6 +424,12 @@ int main(int argc, char** argv) {
 				filter.setFilterLimits(table_height + 0.02, table_height + 0.05);
 				filter.filter(*filtered_cloud);
 
+				// and remove points that are out of reach
+				filter.setInputCloud(filtered_cloud);
+				filter.setFilterFieldName("x");
+				filter.setFilterLimits(0.4, 1.2);
+				filter.filter(*filtered_cloud);
+
 				finder.pubCloud.publish(filtered_cloud);
 				ros::Duration(1.0).sleep();
 
