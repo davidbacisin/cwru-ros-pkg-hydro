@@ -3,26 +3,34 @@
 	<param name="odom_topic" value="/odom" type="str" />
 
 	<!-- Launch Abby base file -->
-	<include file="$(find cwru_base)/launch/start_base.launch" />
+	<include file="$(find cwru_base)/launch/start_abby_base.launch" />
 
 	<!-- Launch Lidar nodes. Should be same as jinx -->
 	<include file="$(find lidar)/launch/lidar-jinx.launch" />
 
 	<!-- Launch Velocity Scheduler -->
-	<node name="vel_scheduler" pkg="vel_scheduler" type="vel_scheduler" respawn="false">
+	<!-- <node name="vel_scheduler" pkg="vel_scheduler" type="vel_scheduler" respawn="true">
 		<param name="max_linear_velocity" type="double" value="0.5" />
 		<param name="max_linear_acceleration" type="double" value="0.125" />
 		<param name="max_angular_velocity" type="double" value="0.25" />
 		<param name="max_angular_acceleration" type="double" value="0.05" />
 		<param name="cmd_vel_topic" type="str" value="/cmd_vel" />
 		<param name="cmd_vel_stamped_topic" type="str" value="/cmd_vel_stamped" />
-	</node>
+	</node> -->
 
 	<!-- Launch Abby Path Planner -->
 
 	<!-- Launch Object Finder -->
 	<node name="object_finder" pkg="object_finder" type="object_finder" respawn="true" />
 
-	<!-- Launch IRB120 arm controller -->
+	<!-- Launch IRB120 arm controllers, connector, regular and cartesian -->
+	<include file="$(find industrial_robot_client )/launch/robot_interface_download.launch">
+		<remap from="robot_ip" to="192.168.0.50" />
+	</include>
+	<node name="beta_irb120_im_interface" pkg="beta_abby" type="beta_irb120_im_interface" respawn="true" />
+	<node name="beta_cartesian_motion" pkg="beta_abby" type="beta_cartesian_motion" respawn="true" />
+
+	<!-- Master planner -->	
+	<node name="master_planner" pkg="master_planner" type="master_planner" respawn="true" />
 
 </launch>
