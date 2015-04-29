@@ -67,6 +67,11 @@ int main(int argc, char **argv) {
 	arm.point_publisher = nh.advertise<visualization_msgs::InteractiveMarkerFeedback>("example_marker/feedback", 1);
 	arm.is_moving = false;
 
+	// calculate the desired rotation of the hand
+	Eigen::Quaterniond hand_angle(0.0, 1.0, 0.0, 1.0);
+	hand_angle.normalize();
+	ROS_INFO("angle %f, %f, %f, %f", hand_angle.x(), hand_angle.y(), hand_angle.z(), hand_angle.w());
+
 	ROS_INFO("master_planner is ready");
 	while (ros::ok()) {
 		switch (mode) {
@@ -106,13 +111,6 @@ int main(int argc, char **argv) {
 				dest.pose.position.x = can.top.point.x;
 				dest.pose.position.y = can.top.point.y;
 				dest.pose.position.z = can.top.point.z + 0.18; // be a bit above the can
-				Eigen::Matrix3d rotation; // calculate the rotation of the hand
-				rotation << 0.0, 0.0, 1.0,
-					    0.0, 1.0, 0.0,
-					    -1.0, 0.0, 0.0;
-				Eigen::Quaterniond hand_angle(rotation);
-				hand_angle.normalize();
-				ROS_INFO("angle %f, %f, %f, %f", hand_angle.x(), hand_angle.y(), hand_angle.z(), hand_angle.w());
 				dest.pose.orientation.x = hand_angle.x();
 				dest.pose.orientation.y = hand_angle.y() - 1e-3; // shift by a tiny bit, otherwise the ik solver gets stuck
 				dest.pose.orientation.z = hand_angle.z();
@@ -144,27 +142,50 @@ int main(int argc, char **argv) {
 				break;
 			}
 			case OPEN_HAND:
+				ROS_INFO("Opening hand");
 				// go to next step
 				mode = CARTESIAN_DESCENT;
 				break;
 			case CARTESIAN_DESCENT: {
-				// call  service
+				// send arm to the approach position
+				visualization_msgs::InteractiveMarkerFeedback dest;
+				dest.header.frame_id = "base_link";
+				dest.header.stamp = ros::Time::now();
+				dest.client_id = "master_planner_marker";
+				dest.marker_name = "des_hand_pose";
+				dest.control_name = "";
+				dest.event_type = dest.POSE_UPDATE;
+				dest.pose.position.x = can.top.point.x;
+				dest.pose.position.y = can.top.point.y;
+				dest.pose.position.z = can.top.point.z + 0.18; // be a bit above the can
+				dest.pose.orientation.x = hand_angle.x();
+				dest.pose.orientation.y = hand_angle.y() - 1e-3; // shift by a tiny bit, otherwise the ik solver gets stuck
+				dest.pose.orientation.z = hand_angle.z();
+				dest.pose.orientation.w = hand_angle.w() + 1e-3;
+
+				// call the service
 				cwru_srv::simple_int_service_messageRequest req;
 				cwru_srv::simple_int_service_messageResponse resp;
-				
-				req.req = 1; // 
-				if (!ros::service::call("X", req, resp)) {
-					ROS_WARN("X service not successful. Is beta_cartesian_motion running?");
-					mode = IDLE;
-					break;
-				}
-				arm.is_moving = true;
+				req.req = 2; // don't return to home position
 
-				// wait until it's there
-				while (arm.is_moving && ros::ok()) {
-					ros::spinOnce();
-					ros::Duration(0.5).sleep();
+				for (float offset = 0.18; offset > 0.02; offset -= 0.01) {
+					// update the desired position
+					dest.header.stamp = ros::Time::now();
+					dest.pose.position.z = can.top.point.z + offset;
+					// go
+					if (!ros::service::call("move_trigger", req, resp)) {
+						ROS_WARN("move_trigger service not successful. Is beta_irb120_im_interface running?");
+						mode = IDLE;
+						break;
+					}
+					// wait until it's there
+					arm.is_moving = true;
+					while (arm.is_moving && ros::ok()) {
+						ros::spinOnce();
+						ros::Duration(0.1).sleep();
+					}
 				}
+
 				// great! we have the can position
 				ROS_INFO("Arm has descended");
 				// go to next step
@@ -172,6 +193,7 @@ int main(int argc, char **argv) {
 				break;
 			}
 			case CLOSE_HAND:
+				ROS_INFO("Closing hand");
 				// wait a bit (until we get the hand controller code)
 				ros::Duration(5.0).sleep();
 				// go to next step
