@@ -37,14 +37,14 @@ private:
 
 	// interactive marker
 	int dest_trigger;
-	geometry_msgs::Point dest_point;
+	// geometry_msgs::Point dest_point;
 	interactive_markers::InteractiveMarkerServer im_server;
 	visualization_msgs::InteractiveMarker im;
 	visualization_msgs::InteractiveMarkerControl im_control,
 		im_translate_x,
 		im_translate_y;
 	void initializeInteractiveMarker();
-	void markerCallback(const visualization_msgs::InteractiveMarkerFeedbackConstPtr &pt);
+	static void markerCallback(const visualization_msgs::InteractiveMarkerFeedbackConstPtr &pt);
 	
 	// Path service
 	ros::Publisher segment_pub;

@@ -1,7 +1,7 @@
 #include "abby_path.h"
 
-// Define the list of path segments, in order.
-// The array index becomes the ID of the segment.
+// need this because interactive marker server listener needs a static callback
+geometry_msgs::Point g_dest_point;
 
 AbbyPathPlanner::AbbyPathPlanner(ros::NodeHandle& nh):
 	nh_p(&nh),
@@ -131,7 +131,7 @@ void AbbyPathPlanner::initializeInteractiveMarker() {
     
     // add the interactive marker to our collection 
     // and tell the server to call markerCallback() when feedback arrives for it
-    im_server.insert(im, &markerCallback);
+    im_server.insert(im, &AbbyPathPlanner::markerCallback);
 
     // 'commit' changes and send to all clients
     im_server.applyChanges();
@@ -152,13 +152,13 @@ void AbbyPathPlanner::odomCallback(const nav_msgs::Odometry& odom_rcvd) {
 }
 
 void AbbyPathPlanner::markerCallback(const visualization_msgs::InteractiveMarkerFeedbackConstPtr& pt) {
-	dest_point.x = pt->pose.position.x;
-	dest_point.y = pt->pose.position.y;
+	g_dest_point.x = pt->pose.position.x;
+	g_dest_point.y = pt->pose.position.y;
 }
 
 // ROS service callback used to fetch length/heading coordinates from this node
-bool AbbyPathPlanner::serviceCallback(path_planner::path_segmentRequest& request,
-								  path_planner::path_segmentResponse& response) {
+bool AbbyPathPlanner::serviceCallback(abby_path::path_segmentRequest& request,
+								  abby_path::path_segmentResponse& response) {
 	ROS_INFO("Retrieving a path segment from the path_planner service");
 	/* Need to update how IDs work
 	// ensure the request ID is within the bounds
@@ -214,8 +214,8 @@ PathSegment* AbbyPathPlanner::nextSegment(){
 	}
 	*/
 	// get the transformed destination coordinates
-	double dest_x = dest_point.x,
-		   dest_y = dest_point.y;
+	double dest_x = g_dest_point.x,
+		   dest_y = g_dest_point.y;
 	// find the distance between our current position and our destination
 	double dx = dest_x - current_pose.pose.position.x,
 		   dy = dest_y - current_pose.pose.position.y;
@@ -241,7 +241,7 @@ PathSegment* AbbyPathPlanner::nextSegment(){
 		   px = 2*qw*qw - 1,
 		   py = 2*qz*qw;
 	if (length < 0.1) { // don't bother. Just go to the next path index.
-		path_index++;
+		// path_index++;
 		return NULL;
 	}
 
@@ -251,7 +251,7 @@ PathSegment* AbbyPathPlanner::nextSegment(){
 	if (heading < 0.15) { // if our angle is approximately zero, then we can go straight
 		heading = 0.0;
 		// we should have reached our destination once this segment is done. Go to the next point.
-		path_index++;
+		// path_index++;
 	}
 	else {
 		// determine which direction to head

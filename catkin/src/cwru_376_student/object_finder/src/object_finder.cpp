@@ -420,7 +420,7 @@ int main(int argc, char** argv) {
 				// remove points below table
 				filter.setInputCloud(filtered_cloud);
 				filter.setFilterFieldName("z");
-				double table_height = -table_coefficients->values[3]/table_coefficients->values[2];
+				double table_height = -table_coefficients->values[3]/table_coefficients->values[2] - 0.04;
 				filter.setFilterLimits(table_height + 0.02, table_height + 0.05);
 				filter.filter(*filtered_cloud);
 
