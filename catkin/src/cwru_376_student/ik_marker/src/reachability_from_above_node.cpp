@@ -160,7 +160,7 @@ int main(int argc, char **argv) {
     // std::ios::trunc If the file is opened for output operations and it already existed, its previous content is deleted and replaced by the new one.
     outputFile1.open("reachableMktPtPos.txt");
     outputFile2.open("unreachableMktPtPos.txt");
-    double x_des = 0.37;
+    double x_des = 0.37 - 0.22;
     should_track_empty = false;
     temp.clear();
     std::cout << std::endl;
@@ -200,9 +200,9 @@ int main(int argc, char **argv) {
 
             // Only when nsolns > 0, it is meaningful to publish the corresponding desired tool point as a topic: reachablePt
             if (nsolns>0) {
-                desPt.x = x_des; // remember the desired value of x coordiate and and assign to desPt.x
-                desPt.y = y_des; // remember the desired value of y coordiate and and assign to desPt.y
-                desPt.z = z_des; // remember the desired value of z coordiate and and assign to desPt.z
+                // desPt.x = x_des; // remember the desired value of x coordiate and and assign to desPt.x
+                // desPt.y = y_des; // remember the desired value of y coordiate and and assign to desPt.y
+                // desPt.z = z_des; // remember the desired value of z coordiate and and assign to desPt.z
                 //ROS_INFO("desired point: x = %f, y = %f, z = %f", desPt.x, desPt.y, desPt.z);
                 ik_solver.get_solns(q6dof_solns);
                 // defining a joint limits vector for joint 0 and joint 1, such that each joint is specified within a range of motion
