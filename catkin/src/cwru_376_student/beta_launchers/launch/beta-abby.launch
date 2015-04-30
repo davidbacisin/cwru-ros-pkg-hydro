@@ -30,6 +30,7 @@
 	</include>
 	<node name="beta_irb120_im_interface" pkg="beta_abby" type="beta_irb120_im_interface" respawn="true" />
 	<node name="beta_cartesian_motion" pkg="beta_abby" type="beta_cartesian_motion" respawn="true" />
+	<node name="ik_solution_marker_node" pkg="ik_marker" type="ik_solution_marker_node" respawn="true" />
 
 	<!-- Master planner -->	
 	<node name="master_planner" pkg="master_planner" type="master_planner" respawn="true" />
