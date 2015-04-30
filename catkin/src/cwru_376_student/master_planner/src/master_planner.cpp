@@ -100,8 +100,9 @@ int main(int argc, char **argv) {
 				// great! we have the can position
 				ROS_INFO("Can top found at (%f, %f, %f)", can.top.point.x, can.top.point.y, can.top.point.z);
 				// go to next step if data is good
-				if (!isnan(can.top.point.x) && !isnan(can.top.point.y))
-					mode = APPROACH_POSITION;
+				//if (!isnan(can.top.point.x) && !isnan(can.top.point.y))
+				//	mode = APPROACH_POSITION;
+				mode = IDLE;
 				break;
 			}
 			case APPROACH_POSITION: {

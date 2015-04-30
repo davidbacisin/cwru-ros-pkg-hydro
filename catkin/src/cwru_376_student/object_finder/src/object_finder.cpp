@@ -433,6 +433,11 @@ int main(int argc, char** argv) {
 				finder.pubCloud.publish(filtered_cloud);
 				ros::Duration(1.0).sleep();
 
+				if (use_search_cloud){
+					ROS_INFO("Using search cloud");
+					pcl::copyPointCloud<pcl::PointXYZ>(*search_cloud, *filtered_cloud);
+				}
+
 				// estimate the center based on the centroid
 				Eigen::Vector4f can_center_4f; // compute3DCentroid requires a 4-vector for some reason
 				pcl::compute3DCentroid(*filtered_cloud, can_center_4f);
