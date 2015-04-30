@@ -13,8 +13,6 @@
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
 #include <irb120_kinematics.h>
-#include <joint_space_planner.h>
-#define VECTOR_DIM 6 // chooose t plan w/ 6-dof vectors
 //#include <std_msgs/Int16MultiArray>
 
 // define some global scope variable
@@ -98,6 +96,7 @@ int main(int argc, char **argv) {
     desPt.z = 0.0;
 
     Eigen::Vector3d p;
+    Eigen::Vector3d CartesianPt;
     Eigen::Vector3d n_des,t_des,b_des;
     Vectorq6x1 q_in;
     q_in<<0,0,0,0,0,0;
@@ -136,6 +135,7 @@ int main(int argc, char **argv) {
     Eigen::Affine3d a_tool_des; // expressed in DH frame
     Eigen::Affine3d a_tool_cartesianDes;
     int cartesian_nsolns;
+    int nlayer;
     std::vector<std::vector<Eigen::VectorXd> > path_options; 
     std::vector<Eigen::VectorXd>  single_layer_nodes;     
     std::vector<Eigen::VectorXd> optimal_path;
@@ -160,86 +160,88 @@ int main(int argc, char **argv) {
     // std::ios::trunc If the file is opened for output operations and it already existed, its previous content is deleted and replaced by the new one.
     outputFile1.open("reachableMktPtPos.txt");
     outputFile2.open("unreachableMktPtPos.txt");
-    for (double x_des = -0.4; x_des < 0.7; x_des += 0.1) {
+    double x_des = 0.37;
+    should_track_empty = false;
+    temp.clear();
+    std::cout << std::endl;
+    std::cout << "x=" << x_des <<"  ";
+    for (double z_des = 0.9; z_des >- 0.4; z_des -= 0.1) {
         should_track_empty = false;
         temp.clear();
         std::cout << std::endl;
-        std::cout << "x=" << x_des <<"  ";
-        for (double z_des = 0.9; z_des >- 0.4; z_des -= 0.1) {
-            should_track_empty = false;
-            temp.clear();
-            std::cout << std::endl;
-            std::cout << "z=" << round(z_des*10) << "  ";
-            for (double y_des =- 1.0; y_des < 1.0; y_des += 0.05) {
-                p[0] = x_des;
-                p[1]= y_des;
-                p[2] = z_des;
-                /*desPt.y = y_des;
-                desPt.z = z_des;*/
-                a_tool_des.translation() = p;
-                int nsolns = ik_solver.ik_solve(a_tool_des);
-                
-                //std_msgs::Int16 iknsolns; // create a variable of type "Int16" to publish the number of IK solution
-                //iknsolns.data = nsolns;
-                std::cout<<nsolns;
-                // std::cout << "I got nsolns" << std::endl;
-                if (nsolns == 0 && nsolns_previous > 0) {
-                    // std::cout << "I am here" << std::endl;
-                    temp.clear();
-                    should_track_empty = true;
+        std::cout << "z=" << round(z_des*10) << "  ";
+        for (double y_des =- 1.0; y_des < 1.0; y_des += 0.05) {
+            p[0] = x_des;
+            p[1]= y_des;
+            p[2] = z_des;
+            /*desPt.y = y_des;
+            desPt.z = z_des;*/
+            a_tool_des.translation() = p;
+            int nsolns = ik_solver.ik_solve(a_tool_des);
+            
+            //std_msgs::Int16 iknsolns; // create a variable of type "Int16" to publish the number of IK solution
+            //iknsolns.data = nsolns;
+            std::cout<<nsolns;
+            // std::cout << "I got nsolns" << std::endl;
+            if (nsolns == 0 && nsolns_previous > 0) {
+                // std::cout << "I am here" << std::endl;
+                temp.clear();
+                should_track_empty = true;
+            }
+            else if (nsolns > 0 && nsolns_previous == 0) {
+                // std::cout << "hellooooooooooooooooooooooo";
+                for (int i = 0; i < temp.size(); ++ i) {
+                    outputFile2 << temp[i] << std::endl;
+                    // ROS_INFO("temp size", temp.size());
                 }
-                else if (nsolns > 0 && nsolns_previous == 0) {
-                    // std::cout << "hellooooooooooooooooooooooo";
-                    for (int i = 0; i < temp.size(); ++ i) {
-                        outputFile2 << temp[i] << std::endl;
-                        // ROS_INFO("temp size", temp.size());
-                    }
-                    should_track_empty = false;
-                }
+                should_track_empty = false;
+            }
 
 
-                // Only when nsolns > 0, it is meaningful to publish the corresponding desired tool point as a topic: reachablePt
-                if (nsolns>0) {
-                    desPt.x = x_des; // remember the desired value of x coordiate and and assign to desPt.x
-                    desPt.y = y_des; // remember the desired value of y coordiate and and assign to desPt.y
-                    desPt.z = z_des; // remember the desired value of z coordiate and and assign to desPt.z
-                    //ROS_INFO("desired point: x = %f, y = %f, z = %f", desPt.x, desPt.y, desPt.z);
-                    ik_solver.get_solns(q6dof_solns);
-                    // defining a joint limits vector for joint 0 and joint 1, such that each joint is specified within a range of motion
-                    std::vector<double> jointLimits {0,-M_PI,-M_PI/2,M_PI/6}; 
-                    std::vector<int> weight{1,1,1,7,5,1}; //defining a weight vector
-                    double sum;
-                    double minimum = 1e6;
-                    std_msgs::Int16 bestIkSoluNo;
-                    Vectorq6x1 oneIkSolu;
-                    // Once nsolns > 0, choose a IK solution both meet the specified joint limit the weight requirement
-                    for (int i = 0; i < q6dof_solns.size(); ++i){
-                        oneIkSolu = q6dof_solns[i];
-                        if (oneIkSolu[0] < jointLimits[0] && oneIkSolu[0] > jointLimits[1] 
-                            && oneIkSolu[1] < jointLimits[3] && oneIkSolu[1] > jointLimits[2]) {
-                            sum = 0;
-                            for (int ijnt = 0; ijnt < 6; ++ijnt){
-                                sum = sum + oneIkSolu[ijnt] * weight[ijnt];
-                            }
-                            if (sum < minimum){
-                                minimum = sum;
-                                bestIkSoluNo.data = i; // remember the IK solution which has the minimum last joint angle solution
-                            }
-                        }   
-                    }
-                    for ( ) {
+            // Only when nsolns > 0, it is meaningful to publish the corresponding desired tool point as a topic: reachablePt
+            if (nsolns>0) {
+                desPt.x = x_des; // remember the desired value of x coordiate and and assign to desPt.x
+                desPt.y = y_des; // remember the desired value of y coordiate and and assign to desPt.y
+                desPt.z = z_des; // remember the desired value of z coordiate and and assign to desPt.z
+                //ROS_INFO("desired point: x = %f, y = %f, z = %f", desPt.x, desPt.y, desPt.z);
+                ik_solver.get_solns(q6dof_solns);
+                // defining a joint limits vector for joint 0 and joint 1, such that each joint is specified within a range of motion
+                std::vector<double> jointLimits {0,-M_PI,-M_PI/2,M_PI/6}; 
+                std::vector<int> weight{1,1,1,7,5,1}; //defining a weight vector
+                double sum;
+                double minimum = 1e6;
+                std_msgs::Int16 bestIkSoluNo;
+                Vectorq6x1 oneIkSolu;
+                // Once nsolns > 0, choose a IK solution both meet the specified joint limit the weight requirement
+                for (int i = 0; i < q6dof_solns.size(); ++i){
+                    oneIkSolu = q6dof_solns[i];
+                    if (oneIkSolu[0] < jointLimits[0] && oneIkSolu[0] > jointLimits[1] 
+                        && oneIkSolu[1] < jointLimits[3] && oneIkSolu[1] > jointLimits[2]) {
+                        sum = 0;
+                        for (int ijnt = 0; ijnt < 6; ++ijnt){
+                            sum = sum + oneIkSolu[ijnt] * weight[ijnt];
+                        }
+                        if (sum < minimum){
+                            minimum = sum;
+                            bestIkSoluNo.data = i; // remember the IK solution which has the minimum last joint angle solution
+                        }
+                    }   
+                }
+                for (double x_var = x_des; x_var < x_des + 0.06; x_var += 0.01) {
                     CartesianPt[0] = x_var;
                     CartesianPt[1]=  y_des;
                     CartesianPt[2] = z_des;
                     a_tool_cartesianDes.translation() = CartesianPt;
-
                     //is this point reachable?
                     cartesian_nsolns = ik_solver.ik_solve(a_tool_cartesianDes); // for a specific y, the nsolns gives the number of IK solution.
-                    ROS_INFO("there are %d solutions",cartesian_nsolns);
+                    // ROS_INFO("there are %d solutions",cartesian_nsolns);
                     ik_solver.get_solns(q6dof_cartesian_solns);
-                    // if nsolns > 0, then we put all these solution into a vector named single_layer_nodes, so that
-                    // this layer only contains all the IK solution for y has a specific height
+                // if nsolns > 0, then we put all these solution into a vector named single_layer_nodes, so that
+                // this layer only contains all the IK solution for y has a specific height
                     if (cartesian_nsolns>0) {
+                        desPt.x = x_des; // remember the desired value of x coordiate and and assign to desPt.x
+                        desPt.y = CartesianPt[1]; // remember the desired value of y coordiate and and assign to desPt.y
+                        desPt.z = CartesianPt[2]; // remember the desired value of z coordiate and and assign to desPt.z
                         Eigen::VectorXd soln_node;
                         single_layer_nodes.clear();
                         for (int isoln =0; isoln<cartesian_nsolns;isoln++) {
@@ -249,52 +251,22 @@ int main(int argc, char **argv) {
                         }
                         path_options.push_back(single_layer_nodes); // this vector will contain all the IK solution for y changing form -0,4 to 0.4
                         nlayer = path_options.size();
-                        ROS_INFO("filled layer %d",nlayer);
-
-                        optimal_path.resize(nlayer);    
-                        CartesianWeights.resize(VECTOR_DIM);
-                        //for (int i=0;i<VECTOR_DIM;i++) { // default--assign all weights equal 
-                        //    weights(i) = 1.0;
-                        //}
-                        CartesianWeights(0) = 1.0;
-                        CartesianWeights(1) = 1.0;
-                        CartesianWeights(2) = 1.0;
-                        CartesianWeights(3) = 7.0;
-                        CartesianWeights(4) = 6.0;
-                        CartesianWeights(5) = 5.0;
-
-                         //do some planning:
-                        cout<<"instantiating a JointSpacePlanner:"<<endl;
-                        { //limit the scope of jsp here:
-                            JointSpacePlanner jsp (path_options,CartesianWeights);
-                            cout<<"recovering the solution..."<<endl;
-                            jsp.get_soln(optimal_path); // HERE we goy the OPTIMAL PATH for moving manipulator
-                            // for each element optimal_path it only contains one specific IK solution while y changed
-                            // so that this vector is composed of the best IK solution combination for y changing from
-                            // start point to end point, which this result is obtained based on stagecoach problem
-                            //double trip_cost= jsp.get_trip_cost();
-
-                        }
-
-                        //now, jsp is deleted, but optimal_path lives on:
-                        cout<<"resulting solution path: "<<endl;
-                        for (int ilayer=0;ilayer<nlayer;ilayer++) {
-                           cout<<"ilayer: "<<ilayer<<" node: "<<optimal_path[ilayer].transpose()<<endl;
-                           
+                        // ROS_INFO("filled layer %d",nlayer);
                     }
+                       
+                }
 
-                    reachablePtWrtBaseLink = tfLink1toBaselink(desPt, R_des);
-                    outputFile1 << reachablePtWrtBaseLink << std::endl;
-                }
-                else if (should_track_empty) {
-                    zeroSoluPt.x = x_des; // remember the desired value of x coordiate and and assign to zeroSoluPt.x
-                    zeroSoluPt.y = y_des; // remember the desired value of y coordiate and and assign to zeroSoluPt.y
-                    zeroSoluPt.z = z_des; // remember the desired value of z coordiate and and assign to zeroSoluPt.z
-                    unreachablePtWrtBaseLink = tfLink1toBaselink(zeroSoluPt, R_des);
-                    temp.push_back(unreachablePtWrtBaseLink);
-                }
-                nsolns_previous = nsolns;
+                reachablePtWrtBaseLink = tfLink1toBaselink(desPt, R_des);
+                outputFile1 << reachablePtWrtBaseLink << std::endl;
             }
+            else if (should_track_empty) {
+                zeroSoluPt.x = x_des; // remember the desired value of x coordiate and and assign to zeroSoluPt.x
+                zeroSoluPt.y = y_des; // remember the desired value of y coordiate and and assign to zeroSoluPt.y
+                zeroSoluPt.z = z_des; // remember the desired value of z coordiate and and assign to zeroSoluPt.z
+                unreachablePtWrtBaseLink = tfLink1toBaselink(zeroSoluPt, R_des);
+                temp.push_back(unreachablePtWrtBaseLink);
+            }
+            nsolns_previous = nsolns;
         }
     }
     // for (int i = 0; i < reachPtVec.size(); ++i) {
