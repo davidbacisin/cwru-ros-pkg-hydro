@@ -12,7 +12,9 @@
 #include <fstream>
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
-
+#include <irb120_kinematics.h>
+#include <joint_space_planner.h>
+#define VECTOR_DIM 6 // chooose t plan w/ 6-dof vectors
 //#include <std_msgs/Int16MultiArray>
 
 // define some global scope variable
@@ -128,14 +130,21 @@ int main(int argc, char **argv) {
     R_des.col(2) = b_des;
     
     std::vector<Vectorq6x1> q6dof_solns;
+    std::vector<Vectorq6x1> q6dof_cartesian_solns;
     geometry_msgs::Point reachablePtWrtBaseLink;
     geometry_msgs::Point unreachablePtWrtBaseLink;
     Eigen::Affine3d a_tool_des; // expressed in DH frame
-    
+    Eigen::Affine3d a_tool_cartesianDes;
+    int cartesian_nsolns;
+    std::vector<std::vector<Eigen::VectorXd> > path_options; 
+    std::vector<Eigen::VectorXd>  single_layer_nodes;     
+    std::vector<Eigen::VectorXd> optimal_path;
+    Eigen::VectorXd CartesianWeights;
     // taking transformation into DH frame
     // a_tool_des.linear() = R_des * R_urdf_wrt_DH.transpose(); // never change
 
     a_tool_des.linear() = R_des;
+    a_tool_cartesianDes.linear() = R_des;
     std::cout << "====  irb120 kinematics solver ====" << std::endl;
 
     bool should_track_empty = false;
@@ -218,6 +227,62 @@ int main(int argc, char **argv) {
                             }
                         }   
                     }
+                    for ( ) {
+                    CartesianPt[0] = x_var;
+                    CartesianPt[1]=  y_des;
+                    CartesianPt[2] = z_des;
+                    a_tool_cartesianDes.translation() = CartesianPt;
+
+                    //is this point reachable?
+                    cartesian_nsolns = ik_solver.ik_solve(a_tool_cartesianDes); // for a specific y, the nsolns gives the number of IK solution.
+                    ROS_INFO("there are %d solutions",cartesian_nsolns);
+                    ik_solver.get_solns(q6dof_cartesian_solns);
+                    // if nsolns > 0, then we put all these solution into a vector named single_layer_nodes, so that
+                    // this layer only contains all the IK solution for y has a specific height
+                    if (cartesian_nsolns>0) {
+                        Eigen::VectorXd soln_node;
+                        single_layer_nodes.clear();
+                        for (int isoln =0; isoln<cartesian_nsolns;isoln++) {
+                            soln_node = q6dof_cartesian_solns[isoln]; // convert to compatible datatype, the vector q6dof_solns stores all the solution of each value of y
+                            // and each element is a small vector which is composed of six joint angles
+                            single_layer_nodes.push_back(soln_node); // what this vector contained is as same as soln_node, but different type
+                        }
+                        path_options.push_back(single_layer_nodes); // this vector will contain all the IK solution for y changing form -0,4 to 0.4
+                        nlayer = path_options.size();
+                        ROS_INFO("filled layer %d",nlayer);
+
+                        optimal_path.resize(nlayer);    
+                        CartesianWeights.resize(VECTOR_DIM);
+                        //for (int i=0;i<VECTOR_DIM;i++) { // default--assign all weights equal 
+                        //    weights(i) = 1.0;
+                        //}
+                        CartesianWeights(0) = 1.0;
+                        CartesianWeights(1) = 1.0;
+                        CartesianWeights(2) = 1.0;
+                        CartesianWeights(3) = 7.0;
+                        CartesianWeights(4) = 6.0;
+                        CartesianWeights(5) = 5.0;
+
+                         //do some planning:
+                        cout<<"instantiating a JointSpacePlanner:"<<endl;
+                        { //limit the scope of jsp here:
+                            JointSpacePlanner jsp (path_options,CartesianWeights);
+                            cout<<"recovering the solution..."<<endl;
+                            jsp.get_soln(optimal_path); // HERE we goy the OPTIMAL PATH for moving manipulator
+                            // for each element optimal_path it only contains one specific IK solution while y changed
+                            // so that this vector is composed of the best IK solution combination for y changing from
+                            // start point to end point, which this result is obtained based on stagecoach problem
+                            //double trip_cost= jsp.get_trip_cost();
+
+                        }
+
+                        //now, jsp is deleted, but optimal_path lives on:
+                        cout<<"resulting solution path: "<<endl;
+                        for (int ilayer=0;ilayer<nlayer;ilayer++) {
+                           cout<<"ilayer: "<<ilayer<<" node: "<<optimal_path[ilayer].transpose()<<endl;
+                           
+                    }
+
                     reachablePtWrtBaseLink = tfLink1toBaselink(desPt, R_des);
                     outputFile1 << reachablePtWrtBaseLink << std::endl;
                 }
