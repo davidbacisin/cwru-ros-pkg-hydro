@@ -165,7 +165,7 @@ int main(int argc, char **argv) {
     temp.clear();
     std::cout << std::endl;
     std::cout << "x=" << x_des <<"  ";
-    for (double z_des = 0.9; z_des >- 0.4; z_des -= 0.1) {
+    for (double z_des = 0.9; z_des >0; z_des -= 0.1) {
         should_track_empty = false;
         temp.clear();
         std::cout << std::endl;
