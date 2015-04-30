@@ -135,6 +135,7 @@ int main(int argc, char **argv) {
     Eigen::Affine3d a_tool_des; // expressed in DH frame
     Eigen::Affine3d a_tool_cartesianDes;
     int cartesian_nsolns;
+    std::vector<int> cartesian_nsolns_vec;
     int nlayer;
     std::vector<std::vector<Eigen::VectorXd> > path_options; 
     std::vector<Eigen::VectorXd>  single_layer_nodes;     
@@ -160,7 +161,7 @@ int main(int argc, char **argv) {
     // std::ios::trunc If the file is opened for output operations and it already existed, its previous content is deleted and replaced by the new one.
     outputFile1.open("reachableMktPtPos.txt");
     outputFile2.open("unreachableMktPtPos.txt");
-    double x_des = 0.37 - 0.22;
+    double x_des = 0.37;
     should_track_empty = false;
     temp.clear();
     std::cout << std::endl;
@@ -168,9 +169,11 @@ int main(int argc, char **argv) {
     for (double z_des = 0.9; z_des >0; z_des -= 0.1) {
         should_track_empty = false;
         temp.clear();
+        // cartesian_nsolns_vec.clear();
         std::cout << std::endl;
         std::cout << "z=" << round(z_des*10) << "  ";
         for (double y_des =- 1.0; y_des < 1.0; y_des += 0.05) {
+            // cartesian_nsolns_vec.clear();
             p[0] = x_des;
             p[1]= y_des;
             p[2] = z_des;
@@ -200,33 +203,34 @@ int main(int argc, char **argv) {
 
             // Only when nsolns > 0, it is meaningful to publish the corresponding desired tool point as a topic: reachablePt
             if (nsolns>0) {
+                cartesian_nsolns_vec.clear();
                 // desPt.x = x_des; // remember the desired value of x coordiate and and assign to desPt.x
                 // desPt.y = y_des; // remember the desired value of y coordiate and and assign to desPt.y
                 // desPt.z = z_des; // remember the desired value of z coordiate and and assign to desPt.z
                 //ROS_INFO("desired point: x = %f, y = %f, z = %f", desPt.x, desPt.y, desPt.z);
-                ik_solver.get_solns(q6dof_solns);
-                // defining a joint limits vector for joint 0 and joint 1, such that each joint is specified within a range of motion
-                std::vector<double> jointLimits {0,-M_PI,-M_PI/2,M_PI/6}; 
-                std::vector<int> weight{1,1,1,7,5,1}; //defining a weight vector
-                double sum;
-                double minimum = 1e6;
-                std_msgs::Int16 bestIkSoluNo;
-                Vectorq6x1 oneIkSolu;
-                // Once nsolns > 0, choose a IK solution both meet the specified joint limit the weight requirement
-                for (int i = 0; i < q6dof_solns.size(); ++i){
-                    oneIkSolu = q6dof_solns[i];
-                    if (oneIkSolu[0] < jointLimits[0] && oneIkSolu[0] > jointLimits[1] 
-                        && oneIkSolu[1] < jointLimits[3] && oneIkSolu[1] > jointLimits[2]) {
-                        sum = 0;
-                        for (int ijnt = 0; ijnt < 6; ++ijnt){
-                            sum = sum + oneIkSolu[ijnt] * weight[ijnt];
-                        }
-                        if (sum < minimum){
-                            minimum = sum;
-                            bestIkSoluNo.data = i; // remember the IK solution which has the minimum last joint angle solution
-                        }
-                    }   
-                }
+                // ik_solver.get_solns(q6dof_solns);
+                // // defining a joint limits vector for joint 0 and joint 1, such that each joint is specified within a range of motion
+                // std::vector<double> jointLimits {0,-M_PI,-M_PI/2,M_PI/6}; 
+                // std::vector<int> weight{1,1,1,7,5,1}; //defining a weight vector
+                // double sum;
+                // double minimum = 1e6;
+                // std_msgs::Int16 bestIkSoluNo;
+                // Vectorq6x1 oneIkSolu;
+                // // Once nsolns > 0, choose a IK solution both meet the specified joint limit the weight requirement
+                // for (int i = 0; i < q6dof_solns.size(); ++i){
+                //     oneIkSolu = q6dof_solns[i];
+                //     if (oneIkSolu[0] < jointLimits[0] && oneIkSolu[0] > jointLimits[1] 
+                //         && oneIkSolu[1] < jointLimits[3] && oneIkSolu[1] > jointLimits[2]) {
+                //         sum = 0;
+                //         for (int ijnt = 0; ijnt < 6; ++ijnt){
+                //             sum = sum + oneIkSolu[ijnt] * weight[ijnt];
+                //         }
+                //         if (sum < minimum){
+                //             minimum = sum;
+                //             bestIkSoluNo.data = i; // remember the IK solution which has the minimum last joint angle solution
+                //         }
+                //     }   
+                // }
                 for (double x_var = x_des; x_var < x_des + 0.06; x_var += 0.01) {
                     CartesianPt[0] = x_var;
                     CartesianPt[1]=  y_des;
@@ -234,30 +238,41 @@ int main(int argc, char **argv) {
                     a_tool_cartesianDes.translation() = CartesianPt;
                     //is this point reachable?
                     cartesian_nsolns = ik_solver.ik_solve(a_tool_cartesianDes); // for a specific y, the nsolns gives the number of IK solution.
+                    // if (cartesian_nsolns == 0) {
+                    //     ROS_INFO("No cartesian solution, x = %f, y = %f, z = %f", CartesianPt[0], CartesianPt[1], CartesianPt[2]);
+                    // }
                     // ROS_INFO("there are %d solutions",cartesian_nsolns);
-                    ik_solver.get_solns(q6dof_cartesian_solns);
-                // if nsolns > 0, then we put all these solution into a vector named single_layer_nodes, so that
-                // this layer only contains all the IK solution for y has a specific height
-                    if (cartesian_nsolns>0) {
-                        desPt.x = x_des; // remember the desired value of x coordiate and and assign to desPt.x
-                        desPt.y = CartesianPt[1]; // remember the desired value of y coordiate and and assign to desPt.y
-                        desPt.z = CartesianPt[2]; // remember the desired value of z coordiate and and assign to desPt.z
-                        Eigen::VectorXd soln_node;
-                        single_layer_nodes.clear();
-                        for (int isoln =0; isoln<cartesian_nsolns;isoln++) {
-                            soln_node = q6dof_cartesian_solns[isoln]; // convert to compatible datatype, the vector q6dof_solns stores all the solution of each value of y
-                            // and each element is a small vector which is composed of six joint angles
-                            single_layer_nodes.push_back(soln_node); // what this vector contained is as same as soln_node, but different type
-                        }
-                        path_options.push_back(single_layer_nodes); // this vector will contain all the IK solution for y changing form -0,4 to 0.4
-                        nlayer = path_options.size();
-                        // ROS_INFO("filled layer %d",nlayer);
-                    }
-                       
+                    // ik_solver.get_solns(q6dof_cartesian_solns);
+                    cartesian_nsolns_vec.push_back(cartesian_nsolns);
+                    // if nsolns > 0, then we put all these solution into a vector named single_layer_nodes, so that
+                    // this layer only contains all the IK solution for y has a specific height
+                    // if (cartesian_nsolns>0) {
+                    //     ROS_INFO("Having cartesian solution, x = %f, y = %f, z = %f", CartesianPt[0], CartesianPt[1], CartesianPt[2]);
+                    //     desPt.x = x_des; // remember the desired value of x coordiate and and assign to desPt.x
+                    //     desPt.y = CartesianPt[1]; // remember the desired value of y coordiate and and assign to desPt.y
+                    //     desPt.z = CartesianPt[2]; // remember the desired value of z coordiate and and assign to desPt.z
+                    //     Eigen::VectorXd soln_node;
+                    //     single_layer_nodes.clear();
+                    //     for (int isoln =0; isoln<cartesian_nsolns;isoln++) {
+                    //         soln_node = q6dof_cartesian_solns[isoln]; // convert to compatible datatype, the vector q6dof_solns stores all the solution of each value of y
+                    //         // and each element is a small vector which is composed of six joint angles
+                    //         single_layer_nodes.push_back(soln_node); // what this vector contained is as same as soln_node, but different type
+                    //     }
+                    //     path_options.push_back(single_layer_nodes); // this vector will contain all the IK solution for y changing form -0,4 to 0.4
+                    //     nlayer = path_options.size();
+                    //     ROS_INFO("filled layer %d",nlayer);
+                    //     //cartesian_nsolns_vec.push_back(cartesian_nsolns);
+                    // }
                 }
-
-                reachablePtWrtBaseLink = tfLink1toBaselink(desPt, R_des);
-                outputFile1 << reachablePtWrtBaseLink << std::endl;
+                if(cartesian_nsolns_vec[0] != 0 && cartesian_nsolns_vec[1] != 0 && cartesian_nsolns_vec[2] != 0 && cartesian_nsolns_vec[3] != 0 
+                    && cartesian_nsolns_vec[4] != 0 && cartesian_nsolns_vec[5] != 0){
+                    desPt.x = x_des; // remember the desired value of x coordiate and and assign to desPt.x
+                    desPt.y = CartesianPt[1]; // remember the desired value of y coordiate and and assign to desPt.y
+                    desPt.z = CartesianPt[2]; // remember the desired value of z coordiate and and assign to desPt.z
+                    // ROS_INFO("First = %f, Sec = , Third = %f, Fourth = %f, Fifth = %f, Sixth = %f", cartesian_nsolns_vec[0], cartesian_nsolns_vec[1], cartesian_nsolns_vec[2]);
+                    reachablePtWrtBaseLink = tfLink1toBaselink(desPt, R_des);
+                    outputFile1 << reachablePtWrtBaseLink << std::endl;
+                }
             }
             else if (should_track_empty) {
                 zeroSoluPt.x = x_des; // remember the desired value of x coordiate and and assign to zeroSoluPt.x
